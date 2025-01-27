@@ -89,7 +89,7 @@ class house():
 def initialize(sim_length,number_of_houses):
 
     #Scenario Parameters
-    np.random.seed(42)
+    np.random.seed(42) # LvS Any particular reason for this?
 
     #Load pre-configured data
     f = open('data.pkl', 'rb')

@@ -43,7 +43,7 @@ def neighborhood_strategy(time_step, baseloads, pvs : List[pv], evs : List[ev], 
 
 def main():
     #INITIALIZE SCENARIO
-    sim_length = 96*7*52 #Length of simulation (96 ptu's per day and 7 days)
+    sim_length = 96*1*52 #Length of simulation (96 ptu's per day and 7 days)
     number_of_houses = 100
     simulator = Simulator(battery_strategy=batt_strategy, 
                           hp_strategy=hp_strategy, 

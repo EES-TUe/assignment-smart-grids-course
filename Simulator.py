@@ -4,8 +4,7 @@ from typing import List
 import numpy as np
 import matplotlib.pyplot as plt
 
-from data_initialization import batt, ev, house, hp, pv
-import response
+from data_initialization import house
 
 class Simulator:
 
@@ -83,43 +82,45 @@ class Simulator:
         else:
             print(f"Path to reference data is invalid {path_to_reference_data}")
 
-    def individual_strategy(self, i):
+    def individual_strategy(self, time_step):
         for house in self.list_of_houses:
-            house.pv.simulate_individual_entity(i)
-            house.ev.simulate_individual_entity(i)
-            house.hp.simulate_individual_entity(i)
-            house.batt.simulate_individual_entity(i)
+            house.pv.simulate_individual_entity(time_step)
+            house.ev.simulate_individual_entity(time_step)
+            house.hp.simulate_individual_entity(time_step)
+            house.batt.simulate_individual_entity(time_step)
 
-    def household_strategy(self, i):
+    def household_strategy(self, time_step):
         for house in self.list_of_houses:
-            house.simulate_individual_entity(i)
+            house.simulate_individual_entity(time_step)
 
-    def group_strategy(self, i):
-        self.neighborhood_strategy(i, self.base_loads, self.pvs, self.evs, self.hps, self.batteries)
+    def group_strategy(self, time_step):
+        self.neighborhood_strategy(time_step, self.base_loads, self.pvs, self.evs, self.hps, self.batteries)
 
-    def control_strategy(self, i):
-        self.individual_strategy(i)
-        self.household_strategy(i)
-        self.group_strategy(i)
+    def control_strategy(self, time_step):
+        self.individual_strategy(time_step)
+        self.household_strategy(time_step)
+        self.group_strategy(time_step)
 
-    def response(self, i) -> float:
+    def response(self, time_step) -> float:
         total_load = 0
         for house in self.list_of_houses:
-            house.ev.response(i)
-            house.batt.response(i)
-            house.hp.response(i)
-            total_load += (house.base_data[i] + house.pv.consumption[i] + house.ev.consumption[i] + house.batt.consumption[i] + house.hp.consumption[i])
+            house.ev.response(time_step)
+            house.hp.response(time_step)
+            house.batt.response(time_step)
+            house_load = (house.base_data[time_step] + house.pv.consumption[time_step] + house.ev.consumption[time_step] + house.batt.consumption[time_step] + house.hp.consumption[time_step])
+            total_load += house_load
 
+        print(f"Total load on time step {time_step}: {total_load}")
         return total_load
 
-    def do_time_step(self, i):
-        self.control_strategy(i)
-        self.response(i)
+    def do_time_step(self, time_step):
+        self.limit_ders(time_step)
+        self.control_strategy(time_step)
+        self.total_load[time_step] = self.response(time_step)
 
     def start_simulation(self):
-        for i in range(0, self.sim_length):
-            self.do_time_step(i)
-            self.total_load[i] = self.response(i)
+        for time_step in range(0, self.sim_length):
+            self.do_time_step(time_step)
     
     def show_results(self):
         self.plot_grid()

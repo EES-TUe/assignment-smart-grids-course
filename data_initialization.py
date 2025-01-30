@@ -1,8 +1,9 @@
 import numpy as np
 
 class SimulationEntity:
-    def __init__(self, strategy):
-        self.strategy = strategy
+    def __init__(self, id, strategy):
+        self.strategy = strategy        
+        self.id = id + 1 #give each household an ID
 
     def simulate_individual_entity(self, time_step : int):
         pass
@@ -15,24 +16,23 @@ class SimulationEntity:
 
 class house(SimulationEntity):
 
-    def __init__(self, sim_length, id, baseload, pv_data, ev_data, hp_data, temperature_data, house_strategy, pv_strategy, ev_strategy, batt_strategy, hp_strategy):
-        super().__init__(house_strategy)
+    def __init__(self, id, sim_length, baseload, pv_data, ev_data, hp_data, temperature_data, house_strategy, pv_strategy, ev_strategy, batt_strategy, hp_strategy):
+        super().__init__(id, house_strategy)
         #General House Parameters
-        self.id = id + 1 #give each household an ID
         self.base_data = baseload #load baseload data into house
 
         #DERS
-        self.pv = pv(pv_data,sim_length, pv_strategy)
-        self.ev = ev(ev_data,sim_length, ev_strategy)
-        self.batt = batt(sim_length, batt_strategy)
-        self.hp = hp(sim_length, id, hp_data, temperature_data, hp_strategy)
+        self.pv = pv(id, pv_data, sim_length, pv_strategy)
+        self.ev = ev(id, ev_data, sim_length, ev_strategy)
+        self.batt = batt(id, sim_length, batt_strategy)
+        self.hp = hp(id, sim_length, hp_data, temperature_data, hp_strategy)
 
     def simulate_individual_entity(self, time_step : int):
         return self.strategy(time_step, self.base_data, self.pv, self.ev, self.batt, self.hp)
 
 class pv(SimulationEntity):
-    def __init__(self,pv_data,sim_length,pv_strategy):
-        super().__init__(pv_strategy)
+    def __init__(self, id, pv_data, sim_length, pv_strategy):
+        super().__init__(id, pv_strategy)
         self.data = pv_data
         self.min = 0
         self.max = 0
@@ -42,8 +42,8 @@ class pv(SimulationEntity):
         return self.strategy(time_step, self)
 
 class ev(SimulationEntity):
-    def __init__(self,ev_data,sim_length,ev_strategy):
-        super().__init__(ev_strategy)
+    def __init__(self,id, ev_data, sim_length,ev_strategy):
+        super().__init__(id, ev_strategy)
         self.min = 0
         self.max = 0
         self.consumption = np.zeros(sim_length)
@@ -73,25 +73,27 @@ class ev(SimulationEntity):
             print("battery too empty/full: ", time_step)
 
     def limit(self, time_step):
+        
         if self.session[time_step] == -1:  # vehicle not home, so minmax = [0,0]
-            self.minmax = [0, 0]
+            self.min = 0
+            self.max = 0
         else:
             session = int(self.session[time_step]) #determine the ev charging session number
             # minimum power required to charge the EV to the "required energy" in the time where the vehicle is home
             required_energy = self.size #always charge to 100% SoC
             min_power = (max(0, (required_energy - self.energy))) * 4 #multiply by four because of conversion from kWh to kW
-            time_left = self.session_leave[session] - time_left #determine how many timesteps are left before the vehicle leaves
+            time_left = self.session_leave[session] - time_step #determine how many timesteps are left before the vehicle leaves
             min_power = min(self.power_max, (min_power / time_left)) #determine the min power by dividing the required power by the number of timesteps left
             # max charge power possible
             energy_left = self.size - self.energy #this max power is either what is left to fully charge the battery or the max charging capability
             max_power = min(self.power_max, energy_left * 4)
-    
-            self.minmax = [min_power, max_power] #store value in house
+            self.min = min_power
+            self.max = max_power
 
 class batt(SimulationEntity):
-    def __init__(self,sim_length,batt_strategy):
+    def __init__(self, id, sim_length, batt_strategy):
         # Based on Tesla Powerwall https://www.tesla.com/sites/default/files/pdfs/powerwall/Powerwall_2_AC_Datasheet_EN_NA.pdf
-        super().__init__(batt_strategy)
+        super().__init__(id, batt_strategy)
         self.min = 0
         self.max = 0
         self.consumption = np.zeros(sim_length)
@@ -115,8 +117,8 @@ class batt(SimulationEntity):
         self.max = charge_power
 
 class hp(SimulationEntity):
-    def __init__(self, sim_length : int, id : int, hp_data, T_ambient, hp_startegy):
-        super().__init__(hp_startegy)
+    def __init__(self, id : int, sim_length : int, hp_data, T_ambient, hp_startegy):
+        super().__init__(id, hp_startegy)
 
         #Thermal Properties House
         self.T_ambient = T_ambient

@@ -12,7 +12,7 @@ import time
 # LvS can Solutions of last year be shared?
 # LvS add unittests for testing?
 # LvS add a test to check that no monkey buisness is going on i.e. manipulate the data such that we get favorable results
-`
+
 #INITIALIZE SCENARIO
 sim_length = 96*7*52 #Length of simulation (96 ptu's per day and 7 days)
 number_of_houses = 100
@@ -21,6 +21,25 @@ number_of_houses = 100
 #INITIALIZE DATA
 [list_of_houses,ren_share,temperature_data] = data_initialization.initialize(sim_length, number_of_houses) #this creates the list of houses object and arranges all the earlier loaded data correctly
 total_load = np.zeros(sim_length) #array to store the total combined load of all households for each timestep
+
+def battery_strategy(state_of_charge) -> Float:
+    if state_of_charge <= 50:
+        return ontladen()
+    
+def hp_startegy():
+    return 0
+
+def group_strategy(pv_list, ev_list, hp_list):
+    pv_list[0] = 0.5
+    pv_list[-1] = 8.0
+
+    return pv_list, ev_list, hp_list
+
+def control_order():
+    individual()
+    household()
+    group_strategy()
+
 
 def plot_grid(reference_load):
 

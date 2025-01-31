@@ -22,15 +22,15 @@ class house(SimulationEntity):
         self.base_data = baseload #load baseload data into house
 
         #DERS
-        self.pv = pv(id, pv_data, sim_length, pv_strategy)
-        self.ev = ev(id, ev_data, sim_length, ev_strategy)
-        self.batt = batt(id, sim_length, batt_strategy)
-        self.hp = hp(id, sim_length, hp_data, temperature_data, hp_strategy)
+        self.pv = PVInstallation(id, pv_data, sim_length, pv_strategy)
+        self.ev = EVInstallation(id, ev_data, sim_length, ev_strategy)
+        self.batt = Battery(id, sim_length, batt_strategy)
+        self.hp = Heatpump(id, sim_length, hp_data, temperature_data, hp_strategy)
 
     def simulate_individual_entity(self, time_step : int):
         return self.strategy(time_step, self.base_data, self.pv, self.ev, self.batt, self.hp)
 
-class pv(SimulationEntity):
+class PVInstallation(SimulationEntity):
     def __init__(self, id, pv_data, sim_length, pv_strategy):
         super().__init__(id, pv_strategy)
         self.data = pv_data
@@ -41,7 +41,11 @@ class pv(SimulationEntity):
     def simulate_individual_entity(self, time_step : int):
         return self.strategy(time_step, self)
 
-class ev(SimulationEntity):
+    def limit(self, time_step):
+        self.min = 0
+        self.max = self.data[time_step]
+
+class EVInstallation(SimulationEntity):
     def __init__(self,id, ev_data, sim_length,ev_strategy):
         super().__init__(id, ev_strategy)
         self.min = 0
@@ -90,7 +94,7 @@ class ev(SimulationEntity):
             self.min = min_power
             self.max = max_power
 
-class batt(SimulationEntity):
+class Battery(SimulationEntity):
     def __init__(self, id, sim_length, batt_strategy):
         # Based on Tesla Powerwall https://www.tesla.com/sites/default/files/pdfs/powerwall/Powerwall_2_AC_Datasheet_EN_NA.pdf
         super().__init__(id, batt_strategy)
@@ -116,7 +120,7 @@ class batt(SimulationEntity):
         self.min = dis_power
         self.max = charge_power
 
-class hp(SimulationEntity):
+class Heatpump(SimulationEntity):
     def __init__(self, id : int, sim_length : int, hp_data, T_ambient, hp_startegy):
         super().__init__(id, hp_startegy)
 

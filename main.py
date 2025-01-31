@@ -3,11 +3,14 @@ import numpy as np
 import time
 
 #import required .py files
-from Simulator import Simulator
-from data_initialization import pv, ev, hp, batt
+from Simulator import Simulator, StrategyOrder
+from DataClasses import PVInstallation, EVInstallation, Heatpump, Battery
 import time
 
-def house_strategy(time_step : int, base_data : np.ndarray, pv : pv, ev : ev, batt : batt, hp : hp):
+AMOUNT_OF_TIME_STEPS_IN_DAY = 96
+AMOUNT_OF_DAYS_TO_SIMULATE = 364
+
+def house_strategy(time_step : int, base_data : np.ndarray, pv : PVInstallation, ev : EVInstallation, batt : Battery, hp : Heatpump):
     pv.consumption[time_step] = pv.max 
     ev.consumption[time_step] = ev.max
     hp.consumption[time_step] = hp.min
@@ -17,35 +20,35 @@ def house_strategy(time_step : int, base_data : np.ndarray, pv : pv, ev : ev, ba
     else: # always immediately discharge the battery
         batt.consumption[time_step] = max(-house_load, batt.min)
 
-def pv_strategy(time_step : int, pv : pv):
+def pv_strategy(time_step : int, pv : PVInstallation):
     # Implement a nice pv strategy here
     pass
 
-def ev_strategy(time_step : int, ev : ev):
+def ev_strategy(time_step : int, ev : EVInstallation):
     # Implement a nice ev strategy here
     pass
 
-def hp_strategy(time_step : int, hp : hp):
+def hp_strategy(time_step : int, hp : Heatpump):
     # Implement a nice hp strategy here
     pass
 
-def batt_strategy(time_step : int, batt : batt):
+def batt_strategy(time_step : int, batt : Battery):
     # Implement a nice battery strategy here
     pass
 
-def neighborhood_strategy(time_step, baseloads, pvs : List[pv], evs : List[ev], hps : List[hp], batteries : List[batt]):
+def neighborhood_strategy(time_step, baseloads, pvs : List[PVInstallation], evs : List[EVInstallation], hps : List[Heatpump], batteries : List[Battery]):
     # Implement a nice neigberhood strategy here
-    pvs[0].consumption[time_step] # pv data of first house with time_step
-    evs[0].consumption[time_step] # ev data of first house with time_step
-    hps[0].consumption[time_step] # hp data of first house with time_step
-    baseloads[0][time_step] # base_load data of first house with time_step
-    batteries[0].consumption[time_step] # battery data of first house with time_step
+    pass
 
 def main():
     #INITIALIZE SCENARIO
-    sim_length = 96*1*52 #Length of simulation (96 ptu's per day and 7 days)
+    sim_length = AMOUNT_OF_TIME_STEPS_IN_DAY * AMOUNT_OF_DAYS_TO_SIMULATE #Length of simulation (96 ptu's per day and 7 days)
     number_of_houses = 100
-    simulator = Simulator(battery_strategy=batt_strategy, 
+    
+    strategy_order = [StrategyOrder.INDIVIDUAL, StrategyOrder.HOUSEHOLD, StrategyOrder.NEIGHBORHOOD]
+
+    simulator = Simulator(control_order=strategy_order,
+                          battery_strategy=batt_strategy, 
                           hp_strategy=hp_strategy, 
                           pv_strategy=pv_strategy, 
                           ev_strategy=ev_strategy, 

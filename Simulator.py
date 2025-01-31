@@ -1,14 +1,20 @@
+from enum import Enum
 import os.path
 import pickle
 from typing import List
 import numpy as np
 import matplotlib.pyplot as plt
 
-from data_initialization import house
+from DataClasses import house
+
+class StrategyOrder(Enum):
+    INDIVIDUAL = 1
+    HOUSEHOLD = 2
+    NEIGHBORHOOD = 3
 
 class Simulator:
 
-    def __init__(self, battery_strategy, hp_strategy, pv_strategy, ev_strategy, neighborhood_strategy, house_strategy):
+    def __init__(self, control_order, battery_strategy, hp_strategy, pv_strategy, ev_strategy, neighborhood_strategy, house_strategy):
         self.list_of_houses : List[house] = []
         self.ren_share : np.ndarray = np.array([])
         self.temperature_data : np.ndarray = np.array([])
@@ -19,6 +25,7 @@ class Simulator:
         self.house_strategy = house_strategy
         self.neighborhood_strategy = neighborhood_strategy
         self.total_load : np.ndarray = np.array([])
+        self.control_order : List[StrategyOrder] = control_order
 
     def limit_ders(self,time_step):
         for house in self.list_of_houses:
@@ -27,7 +34,7 @@ class Simulator:
             house.batt.limit(time_step)
             house.hp.limit(time_step)
 
-    def initialize(self, sim_length,number_of_houses,path_to_pkl_data, path_to_reference_data):
+    def initialize(self, sim_length, number_of_houses, path_to_pkl_data, path_to_reference_data):
 
         #Scenario Parameters
         np.random.seed(42) 
@@ -39,6 +46,10 @@ class Simulator:
             f = open(path_to_pkl_data, 'rb')
             scenario_data = pickle.load(f)
             baseloads = scenario_data['baseloaddata']
+
+            if number_of_houses > len(baseloads) or sim_length > baseloads[0].size:
+                raise ValueError(f"number_of_houses <= {len(baseloads)} and sim_length <= {baseloads[0].size}")
+
             pv_data = scenario_data['irrdata']
             ev_data = scenario_data["ev_data"]
             hp_data = scenario_data['hp_data']
@@ -97,9 +108,13 @@ class Simulator:
         self.neighborhood_strategy(time_step, self.base_loads, self.pvs, self.evs, self.hps, self.batteries)
 
     def control_strategy(self, time_step):
-        self.individual_strategy(time_step)
-        self.household_strategy(time_step)
-        self.group_strategy(time_step)
+        for control_strategy_order in self.control_order:
+            if control_strategy_order == StrategyOrder.HOUSEHOLD:
+                self.household_strategy(time_step)
+            if control_strategy_order == StrategyOrder.INDIVIDUAL:
+                self.individual_strategy(time_step)
+            if control_strategy_order == StrategyOrder.NEIGHBORHOOD:
+                self.group_strategy(time_step)
 
     def response(self, time_step) -> float:
         total_load = 0
@@ -109,8 +124,6 @@ class Simulator:
             house.batt.response(time_step)
             house_load = (house.base_data[time_step] + house.pv.consumption[time_step] + house.ev.consumption[time_step] + house.batt.consumption[time_step] + house.hp.consumption[time_step])
             total_load += house_load
-
-        print(f"Total load on time step {time_step}: {total_load}")
         return total_load
 
     def do_time_step(self, time_step):
@@ -128,8 +141,10 @@ class Simulator:
 
     def plot_grid(self):
 
+        reference_load = self.reference_load[0:self.sim_length]
+
         plt.title("Total Load Neighborhood")
-        plt.plot(self.reference_load, label="Reference")
+        plt.plot(reference_load, label="Reference")
         plt.plot(self.total_load, label="Simulation")
         plt.xlabel('PTU [-]')
         plt.ylabel('Kilowatt [kW]')
@@ -139,7 +154,7 @@ class Simulator:
     
         plt.figure()
         power_split = np.split(self.total_load, self.sim_length / 96)
-        reference_split = np.split(self.reference_load, self.sim_length / 96)
+        reference_split = np.split(reference_load, self.sim_length / 96)
         power_split = sum(power_split)
         reference_split = sum(reference_split)
         max_val = max(max(power_split),max(reference_split))
@@ -156,10 +171,12 @@ class Simulator:
         plt.show()
 
     def renewables(self):
-    
+
+        ren_share = self.ren_share[0:self.sim_length]
+
         energy_export = abs(sum(self.total_load[self.total_load<0]/4))
         energy_import = sum(self.total_load[self.total_load>0]/4)
-        renewable_import = sum(self.total_load[self.total_load > 0] * self.ren_share[self.total_load > 0])/4
+        renewable_import = sum(self.total_load[self.total_load > 0] * ren_share[self.total_load > 0])/4
         renewable_percentage = renewable_import/energy_import*100
     
         print("Energy Exported: ", energy_export)

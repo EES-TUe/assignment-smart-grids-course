@@ -89,23 +89,23 @@ class Simulator:
             print(f"Path to pickle data is invalid {path_to_pkl_data}")
 
         if os.path.isfile(path_to_reference_data):
-            self.reference_load = np.load("reference_load.npy")
+            self.reference_load = np.load(path_to_reference_data)
         else:
             print(f"Path to reference data is invalid {path_to_reference_data}")
 
     def individual_strategy(self, time_step):
         for house in self.list_of_houses:
-            house.pv.simulate_individual_entity(time_step)
-            house.ev.simulate_individual_entity(time_step)
-            house.hp.simulate_individual_entity(time_step)
-            house.batt.simulate_individual_entity(time_step)
+            house.pv.simulate_individual_entity(time_step, self.temperature_data)
+            house.ev.simulate_individual_entity(time_step, self.temperature_data)
+            house.hp.simulate_individual_entity(time_step, self.temperature_data)
+            house.batt.simulate_individual_entity(time_step, self.temperature_data)
 
     def household_strategy(self, time_step):
         for house in self.list_of_houses:
-            house.simulate_individual_entity(time_step)
+            house.simulate_individual_entity(time_step, self.temperature_data)
 
     def group_strategy(self, time_step):
-        self.neighborhood_strategy(time_step, self.base_loads, self.pvs, self.evs, self.hps, self.batteries)
+        self.neighborhood_strategy(time_step, self.temperature_data, self.base_loads, self.pvs, self.evs, self.hps, self.batteries)
 
     def control_strategy(self, time_step):
         for control_strategy_order in self.control_order:

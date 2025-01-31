@@ -5,7 +5,7 @@ class SimulationEntity:
         self.strategy = strategy        
         self.id = id + 1 #give each household an ID
 
-    def simulate_individual_entity(self, time_step : int):
+    def simulate_individual_entity(self, time_step : int, temperature_data : np.ndarray):
         pass
 
     def response(self, time_step : int):
@@ -27,8 +27,8 @@ class house(SimulationEntity):
         self.batt = Battery(id, sim_length, batt_strategy)
         self.hp = Heatpump(id, sim_length, hp_data, temperature_data, hp_strategy)
 
-    def simulate_individual_entity(self, time_step : int):
-        return self.strategy(time_step, self.base_data, self.pv, self.ev, self.batt, self.hp)
+    def simulate_individual_entity(self, time_step : int, temperature_data : np.ndarray):
+        return self.strategy(time_step, temperature_data, self.base_data, self.pv, self.ev, self.batt, self.hp)
 
 class PVInstallation(SimulationEntity):
     def __init__(self, id, pv_data, sim_length, pv_strategy):
@@ -38,8 +38,8 @@ class PVInstallation(SimulationEntity):
         self.max = 0
         self.consumption = np.zeros(sim_length)
 
-    def simulate_individual_entity(self, time_step : int):
-        return self.strategy(time_step, self)
+    def simulate_individual_entity(self, time_step : int, temperature_data : np.ndarray):
+        return self.strategy(time_step, temperature_data, self)
 
     def limit(self, time_step):
         self.min = 0
@@ -61,8 +61,8 @@ class EVInstallation(SimulationEntity):
         self.session_arrive = ev_data['T_arrival'] #arrival times of session
         self.session_leave = ev_data['T_leave'] #leave times of session
 
-    def simulate_individual_entity(self, time_step : int):
-        return self.strategy(time_step, self)
+    def simulate_individual_entity(self, time_step : int, temperature_data : np.ndarray):
+        return self.strategy(time_step, temperature_data, self)
     
     def response(self, time_step):
         if time_step != 0: #skip first timestep because you will look back one timestep
@@ -107,8 +107,8 @@ class Battery(SimulationEntity):
         self.energy = 6.25 #energy in kWh in de battery at every moment in time
         self.energy_history = np.zeros(sim_length)
 
-    def simulate_individual_entity(self, time_step : int):
-        return self.strategy(time_step, self)
+    def simulate_individual_entity(self, time_step : int, temperature_data : np.ndarray):
+        return self.strategy(time_step, temperature_data, self)
     
     def response(self, time_step):
         self.energy_history[time_step] = self.energy #save batt SoC for later analysis
@@ -160,8 +160,8 @@ class Heatpump(SimulationEntity):
         T_out = T_out - 273.15
         return 8.736555867367798 - 0.18997851 * (T_tank - T_out) + 0.00125921 * (T_tank - T_out) ** 2
     
-    def simulate_individual_entity(self, time_step : int):
-        return self.strategy(time_step, self)
+    def simulate_individual_entity(self, time_step : int, temperature_data : np.ndarray):
+        return self.strategy(time_step, temperature_data, self)
     
     def response(self, time_step):
         T_ambient = self.T_ambient[time_step]

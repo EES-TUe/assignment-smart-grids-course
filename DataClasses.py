@@ -1,21 +1,29 @@
+from typing import List, Dict
 import numpy as np
+import constants
+
+TIME_STEP_SECONDS = constants.TIME_STEP_SECONDS
 
 class SimulationEntity:
-    def __init__(self, id, strategy):
-        self.strategy = strategy        
-        self.id = id + 1 #give each household an ID
+    """
+    General Base class for all simulated entities
+    
+    Do not change!
+    """
+    def __init__(self, id : int, strategy):
+        self.id = id
+        self.strategy = strategy
 
     def simulate_individual_entity(self, time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray):
         pass
 
-    def response(self, time_step : int):
-        pass
-
-    def limit(self, time_step : int):
-        pass
-
 class Asset(SimulationEntity):
-    def __init__(self, id, sim_length, strategy):
+    """
+    Base class for all simulated assets
+
+    Do not change!
+    """
+    def __init__(self, id : int, sim_length: int, strategy):
         super().__init__(id, strategy)
         self.min = 0
         self.max = 0
@@ -24,17 +32,27 @@ class Asset(SimulationEntity):
     def response(self, time_step : int):
         pass
 
+    def check_response(self, time_step : int):
+        pass
+
     def limit(self, time_step : int):
         pass
 
 class House(SimulationEntity):
+    """
+    Stores the assets in the house and can execute the house strategy
+    
+    Do not change!
+    """
+    def __init__(self, id : int, sim_length: int, baseload : np.ndarray, pv_data : np.ndarray, ev_data : Dict,
+                 hp_data : Dict, temperature_data : np.array, house_strategy, pv_strategy, ev_strategy, batt_strategy,
+                 hp_strategy):
 
-    def __init__(self, id, sim_length, baseload, pv_data, ev_data, hp_data, temperature_data, house_strategy, pv_strategy, ev_strategy, batt_strategy, hp_strategy):
         super().__init__(id, house_strategy)
         #General House Parameters
-        self.base_data = baseload #load baseload data into house
+        self.base_data = baseload # load base load data into house
 
-        #DERS
+        # Assets
         self.pv = PVInstallation(id, pv_data, sim_length, pv_strategy)
         self.ev = EVInstallation(id, ev_data, sim_length, ev_strategy)
         self.batt = Battery(id, sim_length, batt_strategy)
@@ -44,19 +62,47 @@ class House(SimulationEntity):
         return self.strategy(time_step, temperature_data, renewable_share, self.base_data, self.pv, self.ev, self.batt, self.hp)
 
 class PVInstallation(Asset):
-    def __init__(self, id, pv_data, sim_length, pv_strategy):
+    """
+    You do not need to change this class, but you can use the .max_power for your pv strategy, and you can use the limit
+    function for inspiration for your own strategy
+    """
+
+    def __init__(self, id : int, pv_data : np.ndarray, sim_length : int, pv_strategy):
         super().__init__(id, sim_length, pv_strategy)
-        self.data = pv_data
+        self.max_power = pv_data
 
     def simulate_individual_entity(self, time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray):
         return self.strategy(time_step, temperature_data, renewable_share, self)
 
-    def limit(self, time_step):
-        self.min = 0
-        self.max = self.data[time_step]
+    def response(self, time_step : int):
+        # The PVInstallation does not need to update anything
+        self.check_response()
+
+    def check_response(self, time_step : int):
+        if np.round(self.consumption[time_step], 4) > 0.0:
+            raise ValueError(f"PV generation should be < 0")
+
+        if np.round(self.consumption[time_step], 4) < self.max_power[time_step]:
+            raise ValueError(f"PV generation should be lower than max power")
+
+    
+    def limit(self, time_step : int):
+        """
+        Two strategies are already implemented, representing a min and a max value the PV can generate:
+        - min: fully curtail the PV
+        - max: no curtailment, generate the max power
+        """
+
+        self.min = 0.0
+        self.max = self.max_power[time_step]
 
 class EVInstallation(Asset):
-    def __init__(self,id, ev_data, sim_length,ev_strategy):
+    """
+    You do not need to change this class, but you can use the data in this class for your own strategies. You can also
+    use the limit function for inspiration for your own strategy
+    """
+
+    def __init__(self, id, ev_data, sim_length,ev_strategy):
         super().__init__(id, sim_length, ev_strategy)
         self.power_max = ev_data['charge_cap'] #kW
         self.size = ev_data['max_SoC']#kWh
@@ -71,7 +117,7 @@ class EVInstallation(Asset):
     def simulate_individual_entity(self, time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray):
         return self.strategy(time_step, temperature_data, renewable_share, self)
     
-    def response(self, time_step):
+    def response(self, time_step : int):
         if time_step != 0: #skip first timestep because you will look back one timestep
             if self.session[time_step] == -1 and self.session[time_step - 1] != -1: #if the vehicle left the house this timestep, substract the energy lost during driving from the battery
                 self.energy -= self.session_trip_energy[int(self.session[time_step - 1])]
@@ -80,30 +126,50 @@ class EVInstallation(Asset):
 
         self.energy_history[time_step] = self.energy #save EV SoC for later analysis
         self.energy += self.consumption[time_step]/4 #update battery (note conversion from kW to kWh)
-        if (0 > np.round(self.energy,4)) or (np.round(self.energy,4) > self.size): #double check if battery is too full or empty
-            print("battery too empty/full: ", time_step)
+
+        self.check_response(time_step)
+
+    def check_response(self, time_step : int):
+        if np.round(self.consumption[time_step], 4) < 0.0:
+            raise ValueError(f"Consumption of EV should be above 0.0")
+
+        if np.round(self.consumption[time_step], 4) > self.power_max:
+            raise ValueError(f"Consumption of EV should be below power_max")
+
+        if np.round(self.energy, 4) < 0.0:
+            raise ValueError(f"Energy in EV {self.id} is below 0")
+
+        if np.round(self.energy, 4) > self.size:
+            raise ValueError(f"Energy in EV {self.id} is above size")
 
     def limit(self, time_step):
+        """
+        Two strategies are already implemented, representing a min and a max value the EV can consume:
+        - min: try to reach max state of charge during the session. Spread the load over the available time
+        - max: try to reach the max state of charge during the session. As fast as possible.
+        """
         
-        if self.session[time_step] == -1:  # vehicle not home, so minmax = [0,0]
+        if self.session[time_step] == -1:  # vehicle not home, so both min and max power are 0
             self.min = 0
             self.max = 0
         else:
-            session = int(self.session[time_step]) #determine the ev charging session number
-            # minimum power required to charge the EV to the "required energy" in the time where the vehicle is home
+            session_nr = int(self.session[time_step])
             required_energy = self.size #always charge to 100% SoC
-            min_power = (max(0, (required_energy - self.energy))) * 4 #multiply by four because of conversion from kWh to kW
-            time_left = self.session_leave[session] - time_step #determine how many timesteps are left before the vehicle leaves
-            min_power = min(self.power_max, (min_power / time_left)) #determine the min power by dividing the required power by the number of timesteps left
-            # max charge power possible
-            energy_left = self.size - self.energy #this max power is either what is left to fully charge the battery or the max charging capability
-            max_power = min(self.power_max, energy_left * 4)
-            self.min = min_power
-            self.max = max_power
+            energy_to_charge = max(0, required_energy - self.energy)  # in kWh
+
+            # Min strategy
+            time_to_charge = (self.session_leave[session_nr] - time_step) * TIME_STEP_SECONDS / 3600  # in hours
+            self.min = min(self.power_max, energy_to_charge / time_to_charge)
+
+            # Max strategy
+            power_to_charge = energy_to_charge / (TIME_STEP_SECONDS / 3600)  # power required to charge all energy this step in kW
+            self.max = min(self.power_max, power_to_charge)
+
 
 class Battery(Asset):
     def __init__(self, id, sim_length, batt_strategy):
-        # Based on Tesla Powerwall https://www.tesla.com/sites/default/files/pdfs/powerwall/Powerwall_2_AC_Datasheet_EN_NA.pdf
+        # Based on Tesla Powerwall
+        # https://www.tesla.com/sites/default/files/pdfs/powerwall/Powerwall_2_AC_Datasheet_EN_NA.pdf
         super().__init__(id, sim_length, batt_strategy)
         self.afrr = np.zeros(sim_length)
         self.power_max = 5 #kW
@@ -125,7 +191,7 @@ class Battery(Asset):
         self.max = charge_power
 
 class Heatpump(Asset):
-    def __init__(self, id : int, sim_length : int, hp_data, T_ambient, hp_startegy):
+    def __init__(self, id, sim_length : int, hp_data, T_ambient, hp_startegy):
         super().__init__(id, sim_length, hp_startegy)
 
         #Thermal Properties House

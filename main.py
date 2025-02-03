@@ -7,13 +7,14 @@ from DataClasses import PVInstallation, EVInstallation, Heatpump, Battery
 import time
 import constants
 
-AMOUNT_OF_DAYS_TO_SIMULATE = 2  # 1, ..., 364
+AMOUNT_OF_DAYS_TO_SIMULATE = 364  # 1, ..., 364
 
 def pv_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, pv : PVInstallation):
     """
     Implement a nice pv strategy here
 
     Do this by setting a value for pv.consumption[time_step]
+    This value should be <= 0
     """
 
     # Example:
@@ -24,6 +25,7 @@ def ev_strategy(time_step : int, temperature_data : np.ndarray, renewable_share 
     Implement a nice ev strategy here
 
     Do this by setting a value for ev.consumption[time_step]
+    This value should be >= 0
     """
 
     # Example:
@@ -34,6 +36,7 @@ def hp_strategy(time_step : int, temperature_data : np.ndarray, renewable_share 
     Implement a nice hp strategy here
 
     Do this by setting a value for hp.consumption[time_step]
+    This value should be >= 0
     """
 
     # Example:
@@ -44,6 +47,7 @@ def batt_strategy(time_step : int, temperature_data : np.ndarray, renewable_shar
     Implement a nice battery strategy here
 
     Do this by setting a value for batt.consumption[time_step]
+    This value cam be smaller (discharging) or greater (charging) than 0
     """
 
     # Example: do nothing, determine the consumption of the battery in the house strategy
@@ -60,7 +64,7 @@ def house_strategy(time_step : int, temperature_data : np.ndarray, renewable_sha
     - batt.consumption[time_step]
     """
 
-    # Example:
+    # Example: only set batt.consumption[time_step]
     house_load = base_data[time_step] + pv.consumption[time_step] + ev.consumption[time_step] + hp.consumption[time_step]
     if house_load <= 0: # if the combined load is negative, charge the battery
         batt.consumption[time_step] = min(-house_load, batt.max)

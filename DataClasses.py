@@ -119,13 +119,14 @@ class EVInstallation(Asset):
     
     def response(self, time_step : int):
         if time_step != 0: #skip first timestep because you will look back one timestep
-            if self.session[time_step] == -1 and self.session[time_step - 1] != -1: #if the vehicle left the house this timestep, substract the energy lost during driving from the battery
+            # if the vehicle left the house this timestep, substract the energy lost during driving from the battery
+            if self.session[time_step] == -1 and self.session[time_step - 1] != -1: 
                 self.energy -= self.session_trip_energy[int(self.session[time_step - 1])]
                 if self.energy <= 0:
                     self.energy = 0
 
-        self.energy_history[time_step] = self.energy #save EV SoC for later analysis
-        self.energy += self.consumption[time_step]/4 #update battery (note conversion from kW to kWh)
+        self.energy_history[time_step] = self.energy # save EV SoC for later analysis
+        self.energy += self.consumption[time_step] * TIME_STEP_SECONDS / 3600  # update the battery
 
         self.check_response(time_step)
 
@@ -167,11 +168,15 @@ class EVInstallation(Asset):
 
 
 class Battery(Asset):
+    """
+    You do not need to change this class, but you can use the data in this class for your own strategies. You can also
+    use the limit function for inspiration for your own strategy
+    """
+    
     def __init__(self, id, sim_length, batt_strategy):
         # Based on Tesla Powerwall
         # https://www.tesla.com/sites/default/files/pdfs/powerwall/Powerwall_2_AC_Datasheet_EN_NA.pdf
         super().__init__(id, sim_length, batt_strategy)
-        self.afrr = np.zeros(sim_length)
         self.power_max = 5 #kW
         self.size = 13.5 #kWh
         self.energy = 6.25 #energy in kWh in de battery at every moment in time
@@ -182,24 +187,44 @@ class Battery(Asset):
     
     def response(self, time_step):
         self.energy_history[time_step] = self.energy #save batt SoC for later analysis
-        self.energy += self.consumption[time_step]/4 #update battery (note conversion from kW to kWh)
+        self.energy += self.consumption[time_step] * TIME_STEP_SECONDS / 3600 # update battery
+
+    def check_response(self, time_step : int):
+        if np.round(self.consumption[time_step], 4) < - self.power_max:
+            raise ValueError(f"Consumption of EV should be below power_max")
+
+        if np.round(self.consumption[time_step], 4) > self.power_max:
+            raise ValueError(f"Consumption of EV should be below power_max")
+
+        if np.round(self.energy, 4) < 0.0:
+            raise ValueError(f"Energy in EV {self.id} is below 0")
+
+        if np.round(self.energy, 4) > self.size:
+            raise ValueError(f"Energy in EV {self.id} is above size")
+
 
     def limit(self, time_step):
-        dis_power = max(-(self.energy * 4), -self.power_max) #determine maximum discharge power (either what is left or max discharge power), this value is negative (multiplication by 4 for conversion from energy to power)
-        charge_power = min((self.size - self.energy) * 4, self.power_max) #max charging power (either what is left to fully charge battery or max charge power), this value is positive
-        self.min = dis_power
-        self.max = charge_power
+        """
+        Two strategies are already implemented, representing a min and a max value the battery can (dis)charge:
+        - min: discharge as much as possible, either all energy in the battery, or max discharge power
+        - max: charge as much as possible, either the remaining part in the battery, or max charge power
+        """
+
+        # Min Strategy (discharge, negative)
+        power_to_charge = - self.energy / (TIME_STEP_SECONDS / 3600)  # power needed to empty the battery this time step
+        self.min = max(power_to_charge, - self.power_max)
+
+        # Max Strategy (charge, positive)
+        power_to_charge = (self.size - self.energy) / (TIME_STEP_SECONDS / 3600)  # power needed to fill the battery this time step
+        self.max = min(power_to_charge, self.power_max)
 
 class Heatpump(Asset):
-    def __init__(self, id, sim_length : int, hp_data, T_ambient, hp_startegy):
-        super().__init__(id, sim_length, hp_startegy)
+    def __init__(self, id, sim_length : int, hp_data, T_ambient, hp_strategy):
+        super().__init__(id, sim_length, hp_strategy)
 
-        #Thermal Properties House
+        # Thermal Properties House, DO NOT TOUCH OR USE
         self.T_ambient = T_ambient
         self.temperatures = hp_data['temperatures']
-        self.T_setpoint = 293
-        self.T_min = 18+273
-        self.T_max = 21+273
         self.super_matrix = hp_data['super_matrix'][id]
         self.a = hp_data['alpha'][id]
         self.v_part = hp_data['v_part'][id]
@@ -208,20 +233,21 @@ class Heatpump(Asset):
         self.f_inter = hp_data['f_inter']
         self.K_inv = hp_data["K_inv"][id]
         self.heat_demand_house = np.zeros(sim_length)
-
         self.heat_capacity_water = 4182  # [J/kg.K]
-        #building properties
+
+        # Building properties
+        self.T_setpoint = 21 + 273  # set point temperature in the house
+        self.T_min = 18 + 273
+        self.T_max = 21 + 273
         self.nominal_power = 8000  # [W]       Nominal capacity of heat pump installation
         self.minimal_relative_load =  0.3  # [-]       Minimal operational capacity for heat pump to run
-        # house tank properties
         self.house_tank_mass = 120  # [kg]      Mass of buffer = Volume of buffer (Water)
         self.house_tank_T_min_limit = 25  # [deg C]   Min temperature in the buffer tank
         self.house_tank_T_max_limit = 75  # [deg C]   Min temperature in the buffer tank
         self.house_tank_T_set = 40  # [deg C]   Temperature setpoint in buffer tank
         self.house_tank_T_init = 40  # [deg C]   Initial temperature in buffer tank
-        self.house_tank_T = self.house_tank_T_init #Parameter initialized with initial temperature but changes over time
+        self.house_tank_T = self.house_tank_T_init # Parameter initialized with initial temperature but changes over time
         self.temperature_data = np.zeros((sim_length,2))
-        self.actual = np.zeros(sim_length)
 
     def cop(self, T_tank, T_out):
         T_out = T_out - 273.15

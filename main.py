@@ -7,7 +7,7 @@ from DataClasses import PVInstallation, EVInstallation, Heatpump, Battery
 import time
 import constants
 
-AMOUNT_OF_DAYS_TO_SIMULATE = 364  # 1, ..., 364
+AMOUNT_OF_DAYS_TO_SIMULATE = 2  # 1, ..., 364
 
 def pv_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, pv : PVInstallation):
     """
@@ -71,7 +71,8 @@ def house_strategy(time_step : int, temperature_data : np.ndarray, renewable_sha
     else: # discharge the battery otherwise
         batt.consumption[time_step] = max(-house_load, batt.min)
 
-def neighborhood_strategy(time_step, temperature_data : np.ndarray, renewable_share : np.ndarray, baseloads, pvs : List[PVInstallation], evs : List[EVInstallation], hps : List[Heatpump], batteries : List[Battery]):
+def neighborhood_strategy(time_step, temperature_data : np.ndarray, renewable_share : np.ndarray, baseloads : np.ndarray,
+                          pvs : List[PVInstallation], evs : List[EVInstallation], hps : List[Heatpump], batteries : List[Battery]):
     """
     Implement a nice neighborhood strategy here
 

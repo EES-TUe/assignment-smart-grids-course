@@ -30,6 +30,7 @@ Strategies can be implemented on three different levels. On the household level,
 ```python
 def house_strategy(time_step : int, 
                     temperature_data : np.ndarray, 
+                    renewable_share : np.ndarray,
                     base_data : np.ndarray, 
                     pv : PVInstallation, 
                     ev : EVInstallation, 
@@ -49,7 +50,7 @@ def house_strategy(time_step : int,
 The first level is the household level, in this function a strategy can be implemented that holds for every individual household. The above code snippit shows a strategy where pv and ev consumption is always set the to the maximum and the heatpump consumption is set to its minimal value. Next, depending on the resulting total load on the house the battery is either charged or discharged.
 
 ```python
-def pv_strategy(time_step : int, temperature_data : np.ndarray, 
+def pv_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray,
                 pv : PVInstallation):
     pv.consumption[time_step] = pv.max
 ```
@@ -58,6 +59,7 @@ The second level is on the level of individual DERs. The above example highligts
 ```python
 def neighborhood_strategy(time_step, 
                           temperature_data : np.ndarray, 
+                          renewable_share : np.ndarray,
                           baseloads, pvs : List[PVInstallation], 
                           evs : List[EVInstallation], 
                           hps : List[Heatpump], 

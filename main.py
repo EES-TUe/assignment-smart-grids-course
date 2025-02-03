@@ -11,7 +11,7 @@ AMOUNT_OF_DAYS_TO_SIMULATE = 364
 
 # TODO: Check the checks
 
-def house_strategy(time_step : int, temperature_data : np.ndarray, base_data : np.ndarray, pv : PVInstallation, ev : EVInstallation, batt : Battery, hp : Heatpump):
+def house_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, base_data : np.ndarray, pv : PVInstallation, ev : EVInstallation, batt : Battery, hp : Heatpump):
     pv.consumption[time_step] = pv.max 
     ev.consumption[time_step] = ev.max
     hp.consumption[time_step] = hp.min
@@ -21,23 +21,23 @@ def house_strategy(time_step : int, temperature_data : np.ndarray, base_data : n
     else: # always immediately discharge the battery
         batt.consumption[time_step] = max(-house_load, batt.min)
 
-def pv_strategy(time_step : int, temperature_data : np.ndarray, pv : PVInstallation):
+def pv_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, pv : PVInstallation):
     # Implement a nice pv strategy here
     pass
 
-def ev_strategy(time_step : int, temperature_data : np.ndarray, ev : EVInstallation):
+def ev_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, ev : EVInstallation):
     # Implement a nice ev strategy here
     pass
 
-def hp_strategy(time_step : int, temperature_data : np.ndarray, hp : Heatpump):
+def hp_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, hp : Heatpump):
     # Implement a nice hp strategy here
     pass
 
-def batt_strategy(time_step : int, temperature_data : np.ndarray, batt : Battery):
+def batt_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, batt : Battery):
     # Implement a nice battery strategy here
     pass
 
-def neighborhood_strategy(time_step, temperature_data : np.ndarray, baseloads, pvs : List[PVInstallation], evs : List[EVInstallation], hps : List[Heatpump], batteries : List[Battery]):
+def neighborhood_strategy(time_step, temperature_data : np.ndarray, renewable_share : np.ndarray, baseloads, pvs : List[PVInstallation], evs : List[EVInstallation], hps : List[Heatpump], batteries : List[Battery]):
     # Implement a nice neighborhood strategy here
     pass
 

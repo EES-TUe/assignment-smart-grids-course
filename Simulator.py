@@ -55,7 +55,7 @@ class Simulator:
             hp_data = scenario_data['hp_data']
             temperature_data = hp_data["ambient_temp"]
             ren_share = scenario_data['ren_share']
-        
+            print(ren_share)
             #determine distribution of data
             distribution = np.arange(number_of_houses)
             np.random.shuffle(distribution)
@@ -95,17 +95,17 @@ class Simulator:
 
     def individual_strategy(self, time_step):
         for house in self.list_of_houses:
-            house.pv.simulate_individual_entity(time_step, self.temperature_data)
-            house.ev.simulate_individual_entity(time_step, self.temperature_data)
-            house.hp.simulate_individual_entity(time_step, self.temperature_data)
-            house.batt.simulate_individual_entity(time_step, self.temperature_data)
+            house.pv.simulate_individual_entity(time_step, self.ren_share, self.temperature_data)
+            house.ev.simulate_individual_entity(time_step, self.ren_share, self.temperature_data)
+            house.hp.simulate_individual_entity(time_step, self.ren_share, self.temperature_data)
+            house.batt.simulate_individual_entity(time_step, self.ren_share, self.temperature_data)
 
     def household_strategy(self, time_step):
         for house in self.list_of_houses:
-            house.simulate_individual_entity(time_step, self.temperature_data)
+            house.simulate_individual_entity(time_step, self.ren_share, self.temperature_data)
 
     def group_strategy(self, time_step):
-        self.neighborhood_strategy(time_step, self.temperature_data, self.base_loads, self.pvs, self.evs, self.hps, self.batteries)
+        self.neighborhood_strategy(time_step, self.temperature_data, self.ren_share, self.base_loads, self.pvs, self.evs, self.hps, self.batteries)
 
     def control_strategy(self, time_step):
         for control_strategy_order in self.control_order:

@@ -14,7 +14,20 @@ class SimulationEntity:
     def limit(self, time_step : int):
         pass
 
-class house(SimulationEntity):
+class Asset(SimulationEntity):
+    def __init__(self, id, sim_length, strategy):
+        super().__init__(id, strategy)
+        self.min = 0
+        self.max = 0
+        self.consumption = np.zeros(sim_length)
+
+    def response(self, time_step : int):
+        pass
+
+    def limit(self, time_step : int):
+        pass
+
+class House(SimulationEntity):
 
     def __init__(self, id, sim_length, baseload, pv_data, ev_data, hp_data, temperature_data, house_strategy, pv_strategy, ev_strategy, batt_strategy, hp_strategy):
         super().__init__(id, house_strategy)
@@ -30,13 +43,10 @@ class house(SimulationEntity):
     def simulate_individual_entity(self, time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray):
         return self.strategy(time_step, temperature_data, renewable_share, self.base_data, self.pv, self.ev, self.batt, self.hp)
 
-class PVInstallation(SimulationEntity):
+class PVInstallation(Asset):
     def __init__(self, id, pv_data, sim_length, pv_strategy):
-        super().__init__(id, pv_strategy)
+        super().__init__(id, sim_length, pv_strategy)
         self.data = pv_data
-        self.min = 0
-        self.max = 0
-        self.consumption = np.zeros(sim_length)
 
     def simulate_individual_entity(self, time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray):
         return self.strategy(time_step, temperature_data, renewable_share, self)
@@ -45,12 +55,9 @@ class PVInstallation(SimulationEntity):
         self.min = 0
         self.max = self.data[time_step]
 
-class EVInstallation(SimulationEntity):
+class EVInstallation(Asset):
     def __init__(self,id, ev_data, sim_length,ev_strategy):
-        super().__init__(id, ev_strategy)
-        self.min = 0
-        self.max = 0
-        self.consumption = np.zeros(sim_length)
+        super().__init__(id, sim_length, ev_strategy)
         self.power_max = ev_data['charge_cap'] #kW
         self.size = ev_data['max_SoC']#kWh
         self.min_charge = ev_data['min_charge']
@@ -94,13 +101,10 @@ class EVInstallation(SimulationEntity):
             self.min = min_power
             self.max = max_power
 
-class Battery(SimulationEntity):
+class Battery(Asset):
     def __init__(self, id, sim_length, batt_strategy):
         # Based on Tesla Powerwall https://www.tesla.com/sites/default/files/pdfs/powerwall/Powerwall_2_AC_Datasheet_EN_NA.pdf
-        super().__init__(id, batt_strategy)
-        self.min = 0
-        self.max = 0
-        self.consumption = np.zeros(sim_length)
+        super().__init__(id, sim_length, batt_strategy)
         self.afrr = np.zeros(sim_length)
         self.power_max = 5 #kW
         self.size = 13.5 #kWh
@@ -120,9 +124,9 @@ class Battery(SimulationEntity):
         self.min = dis_power
         self.max = charge_power
 
-class Heatpump(SimulationEntity):
+class Heatpump(Asset):
     def __init__(self, id : int, sim_length : int, hp_data, T_ambient, hp_startegy):
-        super().__init__(id, hp_startegy)
+        super().__init__(id, sim_length, hp_startegy)
 
         #Thermal Properties House
         self.T_ambient = T_ambient
@@ -150,9 +154,6 @@ class Heatpump(SimulationEntity):
         self.house_tank_T_set = 40  # [deg C]   Temperature setpoint in buffer tank
         self.house_tank_T_init = 40  # [deg C]   Initial temperature in buffer tank
         self.house_tank_T = self.house_tank_T_init #Parameter initialized with initial temperature but changes over time
-        self.min = 0
-        self.max = 0
-        self.consumption = np.zeros(sim_length)
         self.temperature_data = np.zeros((sim_length,2))
         self.actual = np.zeros(sim_length)
 

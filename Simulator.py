@@ -5,7 +5,7 @@ from typing import List
 import numpy as np
 import matplotlib.pyplot as plt
 
-from DataClasses import house
+from DataClasses import House
 
 class StrategyOrder(Enum):
     INDIVIDUAL = 1
@@ -15,7 +15,7 @@ class StrategyOrder(Enum):
 class Simulator:
 
     def __init__(self, control_order, battery_strategy, hp_strategy, pv_strategy, ev_strategy, neighborhood_strategy, house_strategy):
-        self.list_of_houses : List[house] = []
+        self.list_of_houses : List[House] = []
         self.ren_share : np.ndarray = np.array([])
         self.temperature_data : np.ndarray = np.array([])
         self.batt_strategy = battery_strategy
@@ -63,7 +63,7 @@ class Simulator:
             #create a list containing all the household data and parameters
             list_of_houses = []
             for nmb in range(number_of_houses):
-                list_of_houses.append(house(sim_length=sim_length, 
+                list_of_houses.append(House(sim_length=sim_length,
                                             id=nmb, 
                                             baseload=baseloads[distribution[nmb]], 
                                             pv_data=pv_data[distribution[nmb]], 
@@ -76,7 +76,7 @@ class Simulator:
                                             batt_strategy=self.batt_strategy,
                                             hp_strategy=self.hp_strategy))
 
-            self.list_of_houses : List[house] = list_of_houses
+            self.list_of_houses : List[House] = list_of_houses
             self.ren_share = ren_share
             self.temperature_data = temperature_data
             self.hps = [house.hp for house in self.list_of_houses]

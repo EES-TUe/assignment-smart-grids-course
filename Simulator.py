@@ -5,6 +5,7 @@ from typing import List
 import numpy as np
 import matplotlib.pyplot as plt
 
+import constants
 from DataClasses import House
 
 class StrategyOrder(Enum):
@@ -13,7 +14,16 @@ class StrategyOrder(Enum):
     NEIGHBORHOOD = 3
 
 class Simulator:
-
+    """
+    This class does several things:
+    - Builds the neighborhood to simulate (.initialize)
+    - Loops over all the time steps in the simulation and executes the control strategies (.control_strategy, ...)
+    - Plots the results (.plot_results)
+    - Calculates some metrics (.print_metrics)
+    
+    Please don't touch the parts related to the first two functionalities!
+    """
+    
     def __init__(self, control_order, battery_strategy, hp_strategy, pv_strategy, ev_strategy, neighborhood_strategy, house_strategy):
         self.list_of_houses : List[House] = []
         self.ren_share : np.ndarray = np.array([])
@@ -35,7 +45,6 @@ class Simulator:
             house.hp.limit(time_step)
 
     def initialize(self, sim_length, number_of_houses, path_to_pkl_data, path_to_reference_data):
-
         #Scenario Parameters
         np.random.seed(42) 
         self.total_load = np.zeros(sim_length)
@@ -55,7 +64,6 @@ class Simulator:
             hp_data = scenario_data['hp_data']
             temperature_data = hp_data["ambient_temp"]
             ren_share = scenario_data['ren_share']
-            print(ren_share)
             #determine distribution of data
             distribution = np.arange(number_of_houses)
             np.random.shuffle(distribution)
@@ -134,15 +142,22 @@ class Simulator:
     def start_simulation(self):
         for time_step in range(0, self.sim_length):
             self.do_time_step(time_step)
-    
-    def show_results(self):
-        self.plot_grid()
-        self.renewables()
 
-    def plot_grid(self):
+            # print progress
+            if time_step % int(self.sim_length // 100) == 0:
+                print(f"Progress: {time_step / self.sim_length:.1%}")
 
+    def plot_results(self):
+        """
+        Creates two plots:
+        - The total load of the neighborhood over time, compared with a reference
+        - The normalized daily profile of the neighborhood, compared with a reference
+
+        Feel free to include more plots if you want
+        """
+
+        # Plot total calculated load and the reference load
         reference_load = self.reference_load[0:self.sim_length]
-
         plt.title("Total Load Neighborhood")
         plt.plot(reference_load, label="Reference")
         plt.plot(self.total_load, label="Simulation")
@@ -151,34 +166,50 @@ class Simulator:
         plt.legend()
         plt.grid(True)
         plt.show()
-    
-        plt.figure()
-        power_split = np.split(self.total_load, self.sim_length / 96)
-        reference_split = np.split(reference_load, self.sim_length / 96)
+
+        # Calculate average daily profile
+        amount_of_time_steps_in_day = constants.AMOUNT_OF_TIME_STEPS_IN_DAY
+        time_step_seconds = constants.TIME_STEP_SECONDS
+
+        power_split = np.split(self.total_load, self.sim_length / amount_of_time_steps_in_day)
+        reference_split = np.split(reference_load, self.sim_length / amount_of_time_steps_in_day)
         power_split = sum(power_split)
         reference_split = sum(reference_split)
         max_val = max(max(power_split),max(reference_split))
         power_split /= max_val
         reference_split /= max_val
     
+        # Plot the average daily profiles
         plt.title("Normalized Daily Power Profile")
-        plt.plot(np.arange(1, 97) / 4, power_split, label = 'Simulation')
-        plt.plot(np.arange(1, 97) / 4, reference_split, label = "Reference")
+        plt.plot(np.arange(1, amount_of_time_steps_in_day + 1) * time_step_seconds / 3600, power_split, label = 'Simulation')
+        plt.plot(np.arange(1, amount_of_time_steps_in_day + 1) * time_step_seconds / 3600, reference_split, label = "Reference")
         plt.xlabel('Hour [-]')
         plt.ylabel('Relative Power [-]')
         plt.legend()
         plt.grid(True)
         plt.show()
 
-    def renewables(self):
+    def print_metrics(self):
+        """
+        Calculates 3 metrics:
+        - Total energy exported to the grid
+        - Total energy imported from the grid
+        - Percentage of imported energy to be from renewables
 
-        ren_share = self.ren_share[0:self.sim_length]
+        Feel free to include more metrics if you want
+        """
 
-        energy_export = abs(sum(self.total_load[self.total_load<0]/4))
-        energy_import = sum(self.total_load[self.total_load>0]/4)
-        renewable_import = sum(self.total_load[self.total_load > 0] * ren_share[self.total_load > 0])/4
-        renewable_percentage = renewable_import/energy_import*100
-    
-        print("Energy Exported: ", energy_export)
-        print("Energy Imported: ", energy_import)
-        print("Renewable Share:", renewable_percentage)
+        time_step_seconds = constants.TIME_STEP_SECONDS
+        ren_share = self.ren_share[0: self.sim_length]
+
+        # Calculate metrics
+        energy_export = abs(sum(self.total_load[self.total_load < 0] * time_step_seconds/ 3600))
+        energy_import = sum(self.total_load[self.total_load>0] * time_step_seconds/ 3600)
+        renewable_import = sum(self.total_load[self.total_load > 0] * ren_share[self.total_load > 0]) * time_step_seconds/ 3600
+        renewable_percentage = renewable_import/energy_import * 100
+
+        print("METRICS:")
+        print("---------------------------------------")
+        print(f"Energy Exported: {energy_export} kWh")
+        print(f"Energy Imported: {energy_import} kWh")
+        print(f"Share Renewable Energy Imported: {renewable_percentage} %")

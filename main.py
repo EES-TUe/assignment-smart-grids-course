@@ -74,11 +74,11 @@ def neighborhood_strategy(time_step, temperature_data : np.ndarray, renewable_sh
     """
     Implement a nice neighborhood strategy here
 
-    Do this by setting on or more of the following values for the assets in pvs, evs, hps, and batteries
-    - pv.consumption[time_step]
-    - ev.consumption[time_step]
-    - hp.consumption[time_step]
-    - batt.consumption[time_step]
+    Do this by setting one or more of the following values for the assets in pvs, evs, hps, and batteries
+    - pvs[0].consumption[time_step] = pvs[0].max
+    - evs[0].consumption[time_step] = evs[0].max
+    - hps[0].consumption[time_step] = hps[0].max
+    - batteries[0].consumption[time_step] = batteries[0].max
     """
     pass
 

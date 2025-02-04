@@ -62,7 +62,7 @@ class Simulator:
             pv_data = scenario_data['irrdata']
             ev_data = scenario_data["ev_data"]
             hp_data = scenario_data['hp_data']
-            temperature_data = hp_data["ambient_temp"]
+            temperature_data = hp_data["ambient_temp"][:, 0]
             ren_share = scenario_data['ren_share']
             #determine distribution of data
             distribution = np.arange(number_of_houses)

@@ -7,8 +7,6 @@ from DataClasses import PVInstallation, EVInstallation, Heatpump, Battery
 import time
 import constants
 
-AMOUNT_OF_DAYS_TO_SIMULATE = 2  # 1, ..., 364
-
 def pv_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, pv : PVInstallation):
     """
     Implement a nice pv strategy here
@@ -90,8 +88,9 @@ def main():
     """
 
     # Set up simulation
-    sim_length = constants.AMOUNT_OF_TIME_STEPS_IN_DAY * AMOUNT_OF_DAYS_TO_SIMULATE
-    number_of_houses = 100
+    number_of_houses = 100  # <= 100
+    amount_of_days_to_simulate = 364  # <= 364
+    sim_length = amount_of_days_to_simulate * constants.AMOUNT_OF_TIME_STEPS_IN_DAY
 
     strategy_order = [StrategyOrder.INDIVIDUAL, StrategyOrder.HOUSEHOLD, StrategyOrder.NEIGHBORHOOD]
 

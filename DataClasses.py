@@ -102,7 +102,7 @@ class EVInstallation(Asset):
     use the limit function for inspiration for your own strategy
     """
 
-    def __init__(self, id, ev_data, sim_length,ev_strategy):
+    def __init__(self, id : int, ev_data : Dict, sim_length : int, ev_strategy):
         super().__init__(id, sim_length, ev_strategy)
         self.power_max = ev_data['charge_cap'] #kW
         self.size = ev_data['max_SoC']#kWh
@@ -143,7 +143,7 @@ class EVInstallation(Asset):
         if np.round(self.energy, 4) > self.size:
             raise ValueError(f"Energy in EV {self.id} is above size")
 
-    def limit(self, time_step):
+    def limit(self, time_step : int):
         """
         Two strategies are already implemented, representing a min and a max value the EV can consume:
         - min: try to reach max state of charge during the session. Spread the load over the available time
@@ -173,7 +173,7 @@ class Battery(Asset):
     use the limit function for inspiration for your own strategy
     """
     
-    def __init__(self, id, sim_length, batt_strategy):
+    def __init__(self, id : int, sim_length : int, batt_strategy):
         # Based on Tesla Powerwall
         # https://www.tesla.com/sites/default/files/pdfs/powerwall/Powerwall_2_AC_Datasheet_EN_NA.pdf
         super().__init__(id, sim_length, batt_strategy)
@@ -185,16 +185,16 @@ class Battery(Asset):
     def simulate_individual_entity(self, time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray):
         return self.strategy(time_step, temperature_data, renewable_share, self)
     
-    def response(self, time_step):
+    def response(self, time_step : int):
         self.energy_history[time_step] = self.energy #save batt SoC for later analysis
         self.energy += self.consumption[time_step] * TIME_STEP_SECONDS / 3600 # update battery
 
     def check_response(self, time_step : int):
         if np.round(self.consumption[time_step], 4) < - self.power_max:
-            raise ValueError(f"Consumption of EV should be below power_max")
+            raise ValueError(f"Discharging power should be greater than -power_max")
 
         if np.round(self.consumption[time_step], 4) > self.power_max:
-            raise ValueError(f"Consumption of EV should be below power_max")
+            raise ValueError(f"Charging power should be smaller than power_max")
 
         if np.round(self.energy, 4) < 0.0:
             raise ValueError(f"Energy in EV {self.id} is below 0")
@@ -203,7 +203,7 @@ class Battery(Asset):
             raise ValueError(f"Energy in EV {self.id} is above size")
 
 
-    def limit(self, time_step):
+    def limit(self, time_step : int):
         """
         Two strategies are already implemented, representing a min and a max value the battery can (dis)charge:
         - min: discharge as much as possible, either all energy in the battery, or max discharge power
@@ -219,7 +219,12 @@ class Battery(Asset):
         self.max = min(power_to_charge, self.power_max)
 
 class Heatpump(Asset):
-    def __init__(self, id, sim_length : int, hp_data, T_ambient, hp_strategy):
+    """
+    You do not need to change this class, but you can use the data in this class for your own strategies. You can also
+    use the limit function for inspiration for your own strategy
+    """
+
+    def __init__(self, id: int, sim_length : int, hp_data : Dict, T_ambient : np.ndarray, hp_strategy):
         super().__init__(id, sim_length, hp_strategy)
 
         # Thermal Properties House, DO NOT TOUCH OR USE
@@ -235,84 +240,126 @@ class Heatpump(Asset):
         self.heat_demand_house = np.zeros(sim_length)
         self.heat_capacity_water = 4182  # [J/kg.K]
 
-        # Building properties
-        self.T_setpoint = 21 + 273  # set point temperature in the house
-        self.T_min = 18 + 273
-        self.T_max = 21 + 273
-        self.nominal_power = 8000  # [W]       Nominal capacity of heat pump installation
-        self.minimal_relative_load =  0.3  # [-]       Minimal operational capacity for heat pump to run
-        self.house_tank_mass = 120  # [kg]      Mass of buffer = Volume of buffer (Water)
-        self.house_tank_T_min_limit = 25  # [deg C]   Min temperature in the buffer tank
-        self.house_tank_T_max_limit = 75  # [deg C]   Min temperature in the buffer tank
-        self.house_tank_T_set = 40  # [deg C]   Temperature setpoint in buffer tank
-        self.house_tank_T_init = 40  # [deg C]   Initial temperature in buffer tank
-        self.house_tank_T = self.house_tank_T_init # Parameter initialized with initial temperature but changes over time
-        self.temperature_data = np.zeros((sim_length,2))
+        # Building properties, You can change and use this
+        self.T_setpoint = 20.0 + 273  # [K] set point temperature in the house
+        self.T_min = 18.0 + 273  # [K] Min temperature in the house
+        self.T_max = 21.0 + 273  # [K] Max temperature in the house
+        self.nominal_power = 8000.0  # [W]       Nominal capacity of heat pump installation
+        self.tank_mass = 120.0  # [kg]      Mass of buffer = Volume of buffer (Water)
+        self.tank_T_min_limit = 25.0 + 273 # [K]   Min temperature in the buffer tank
+        self.tank_T_max_limit = 75.0 + 273  # [K]   Min temperature in the buffer tank
+        self.tank_T_set = 40.0 + 273  # [K]   Temperature setpoint in buffer tank
+        self.tank_T_init = 40.0 + 273  # [K]   Initial temperature in buffer tank
+        self.tank_T = self.tank_T_init # Parameter initialized with initial temperature but changes over time
 
-    def cop(self, T_tank, T_out):
-        T_out = T_out - 273.15
+    def cop(self, T_tank: float, T_out: float) -> float:
+        """
+        Calculates the Coefficient of Performance (ratio between supplied heat and the electrical power)
+        Do not change
+        """
         return 8.736555867367798 - 0.18997851 * (T_tank - T_out) + 0.00125921 * (T_tank - T_out) ** 2
     
     def simulate_individual_entity(self, time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray):
         return self.strategy(time_step, temperature_data, renewable_share, self)
     
     def response(self, time_step):
+        """
+        Updates the tank temperature and the house temperatures, assuming that the house gets heated to the level that
+        is required to be stable at the set point temperature
+
+        Heat based calculations are in SI units
+
+        Do not change this function!
+        """
+        T_ambient = self.T_ambient[time_step]
+        heat_to_tank = (self.consumption[time_step] * TIME_STEP_SECONDS) * self.cop(self.tank_T_set, T_ambient[0])
+        heat_to_tank = heat_to_tank * 1000 # in W
+
+        # Calculate the heat required by the house
+        heat_demand_house = self._calculate_heat_demand_house(time_step)
+
+        # Calculate the temperature in the tank after supplying the required heat to the house
+        dT_tank_house = (heat_to_tank - heat_demand_house) / (self.tank_mass * self.heat_capacity_water)
+        tank_T = self.tank_T + dT_tank_house
+        if tank_T < self.tank_T_min_limit:  # if demand is too great, the demand will be 0 but the tank will heat up
+            heat_to_house = 0.0
+        else:
+            heat_to_house = heat_demand_house
+
+        # Update the tank temperature
+        dT_tank_house = (heat_to_tank - heat_to_house) / (self.tank_mass * self.heat_capacity_water)
+        self.tank_T = self.tank_T + dT_tank_house
+
+        # Update the house temperature
+        heat_power_to_house = heat_to_house/ TIME_STEP_SECONDS
+        self._update_house_temperatures(time_step, heat_power_to_house)
+
+        self.check_response(time_step)
+
+
+    def check_response(self, time_step : int):
+        house_temperature = self.temperatures[1]
+        if np.round(house_temperature, 4) < self.T_min:
+            raise ValueError(f"House temperature is smaller than T_min")
+
+        if np.round(self.tank_T, 4) < self.tank_T_min_limit:
+            raise ValueError(f"Tank temperature is smaller than tank_T_min_limit")
+
+        if np.round(self.tank_T, 4) > self.tank_T_max_limit:
+            raise ValueError(f"Tank temperature is greater than tank_T_max_limit")
+    
+    def limit(self, time_step: int):
+        """
+        Two strategies are already implemented, representing a min and a max value the hp can consume:
+        - min: consume power such that the house temperature is kept at the set point and such that the tank
+        temperature does not reach below its set point
+        - max: consume power such that the house temperature is kept at the set point and such that the tank
+        is heated as much as possible
+
+        Calculations are in SI units
+        """
         T_ambient = self.T_ambient[time_step]
 
-        heat_to_house_tank = (self.consumption[time_step]*(1000*900)) * self.cop(self.house_tank_T_set, T_ambient[0])
+        # Calculate the amount of heat needed to keep the house temperature constant
+        heat_demand_house = self._calculate_heat_demand_house(time_step)
 
-        # calculate the heat going from the house tank to the house
-        dT_tank_house = (heat_to_house_tank - self.heat_demand_house[time_step]) / (self.house_tank_mass * self.heat_capacity_water)
-        house_tank_T = self.house_tank_T + dT_tank_house
-        if house_tank_T < self.house_tank_T_min_limit:  # if demand is too great, the demand will be 0 but the tank will heat up
-            self.heat_demand_house[time_step] = 0
+        # Min strategy: calculate whether the tank temperature will reach below its set point if the house is heated
+        tank_T_difference_no_hp = heat_demand_house / (self.tank_mass * self.heat_capacity_water)
+        tank_T_no_hp = self.tank_T - tank_T_difference_no_hp
 
-        # calculate the corresponding temperature in the house tank
-        heat_to_house = self.heat_demand_house[time_step]  # converting the demand to the actual amount that goes in to the house
-        dT_tank_house = (heat_to_house_tank - heat_to_house) / (self.house_tank_mass * self.heat_capacity_water)
-        self.house_tank_T = self.house_tank_T + dT_tank_house
+        if tank_T_no_hp > self.tank_T_set:
+           min_heat_power_to_tank = 0.0 # No heat needed for the tank
+        else:
+            # supply up to set point if possible
+            min_heat_to_tank = self.tank_mass * self.heat_capacity_water * (self.tank_T_set - tank_T_no_hp) + heat_demand_house
+            min_heat_power_to_tank = min(self.nominal_power, min_heat_to_tank / TIME_STEP_SECONDS)
 
-        heat_power_to_house = heat_to_house/900
+        # Max strategy: try to heat the tank as much as possible in this time step
+        max_heat_to_tank = self.tank_mass * self.heat_capacity_water * (self.tank_T_max_limit - tank_T_no_hp) + heat_demand_house
+        max_heat_power_to_tank = min(self.nominal_power, max_heat_to_tank / TIME_STEP_SECONDS)
 
-        # Update the house temperature given the heat power to house
+        # Convert the heating power to electrical power using the Coefficient of Performance
+        min_power = min_heat_power_to_tank / self.cop(self.tank_T_set, T_ambient[0])
+        max_power = max_heat_power_to_tank / self.cop(self.tank_T_set, T_ambient[0])
+
+        self.min = min_power / 1000.0  # convert to kW
+        self.max = max_power / 1000.0  # convert to kW
+        self.heat_demand_house[time_step] = heat_demand_house  # value needs to be stored for response.py
+
+    def _calculate_heat_demand_house(self, time_step: int) -> float:
+        """
+        Helper function
+        Do not change
+        """
+        v = np.matmul(self.super_matrix, self.temperatures) + self.v_part[time_step]
+        heat_demand_house = max(0, ((self.T_setpoint - v[1])/(self.M[1, 1] * self.f_inter[1] + self.M[1, 2] * self.f_inter[2])) * 900)
+        return heat_demand_house
+
+    def _update_house_temperatures(self, time_step: int, heat_power_to_house: float):
+        """
+        Helper function
+        Do not change
+        """
         q_inter = heat_power_to_house * self.f_inter
         b = np.matmul(self.K_inv, q_inter) + self.b_part[time_step]
         self.temperatures = np.matmul(self.super_matrix, self.temperatures - b) + self.a[time_step] * 900 + b
-
-        self.temperature_data[time_step] = np.array([self.house_tank_T, self.temperatures[1]])
-
-    def limit(self, time_step: int):
-        T_ambient = self.T_ambient[time_step]
-        # calculate the heat demands for the house to keep temperature at setpoint
-        v = np.matmul(self.super_matrix, self.temperatures) + self.v_part[time_step]
-        heat_demand_house = max(0, ((self.T_setpoint - v[1])/(self.M[1, 1] * self.f_inter[1] + self.M[1, 2] * self.f_inter[2])) * 900)
-    
-        #DETERMINING MIN -> keep the household and tank temperature constant
-        tank_T_difference_no_hp = heat_demand_house / (self.house_tank_mass * self.heat_capacity_water)
-        tank_T_no_hp = self.house_tank_T - tank_T_difference_no_hp
-    
-        # calculate the resulting heat to the tank
-        # Provide no heat to house tank if its temperature is above the set temperature
-        if tank_T_no_hp > self.house_tank_T_set:
-           min_heat_to_house_tank = 0
-        else:
-            # supply up to set point if possible
-           min_dT_tank_house = self.house_tank_T_set - tank_T_no_hp
-           min_heat_to_house_tank = min(self.nominal_power*900,(self.house_tank_mass * self.heat_capacity_water)*min_dT_tank_house + heat_demand_house)
-    
-        #DETERIMINING HEAT_TANK -> keep temperature household temperature constant but heat up tank temperature
-        # supply to max temperature if possible
-        max_dT_tank_house = self.house_tank_T_max_limit - tank_T_no_hp
-        max_heat_to_house_tank = min(self.nominal_power*900,(self.house_tank_mass * self.heat_capacity_water)*max_dT_tank_house + heat_demand_house)
-    
-    
-        min_power = min_heat_to_house_tank/self.cop(self.house_tank_T_set, T_ambient[0])
-        max_power = max_heat_to_house_tank/self.cop(self.house_tank_T_set, T_ambient[0])
-    
-        self.min = min_power / (1000*900)
-        self.max = max_power / (1000*900)
-        self.heat_demand_house[time_step] = heat_demand_house #value needs to be stored for response.py
-
-
-
-

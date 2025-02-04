@@ -37,14 +37,14 @@ class Simulator:
         self.total_load : np.ndarray = np.array([])
         self.control_order : List[StrategyOrder] = control_order
 
-    def limit_ders(self,time_step):
+    def limit_ders(self, time_step : int):
         for house in self.list_of_houses:
             house.pv.limit(time_step)
             house.ev.limit(time_step)
             house.batt.limit(time_step)
             house.hp.limit(time_step)
 
-    def initialize(self, sim_length, number_of_houses, path_to_pkl_data, path_to_reference_data):
+    def initialize(self, sim_length : int, number_of_houses : int, path_to_pkl_data : str, path_to_reference_data : str):
         #Scenario Parameters
         np.random.seed(42) 
         self.total_load = np.zeros(sim_length)
@@ -101,21 +101,21 @@ class Simulator:
         else:
             print(f"Path to reference data is invalid {path_to_reference_data}")
 
-    def individual_strategy(self, time_step):
+    def individual_strategy(self, time_step : int):
         for house in self.list_of_houses:
             house.pv.simulate_individual_entity(time_step, self.ren_share, self.temperature_data)
             house.ev.simulate_individual_entity(time_step, self.ren_share, self.temperature_data)
             house.hp.simulate_individual_entity(time_step, self.ren_share, self.temperature_data)
             house.batt.simulate_individual_entity(time_step, self.ren_share, self.temperature_data)
 
-    def household_strategy(self, time_step):
+    def household_strategy(self, time_step : int):
         for house in self.list_of_houses:
             house.simulate_individual_entity(time_step, self.ren_share, self.temperature_data)
 
-    def group_strategy(self, time_step):
+    def group_strategy(self, time_step : int):
         self.neighborhood_strategy(time_step, self.temperature_data, self.ren_share, self.base_loads, self.pvs, self.evs, self.hps, self.batteries)
 
-    def control_strategy(self, time_step):
+    def control_strategy(self, time_step : int):
         for control_strategy_order in self.control_order:
             if control_strategy_order == StrategyOrder.HOUSEHOLD:
                 self.household_strategy(time_step)
@@ -124,7 +124,7 @@ class Simulator:
             if control_strategy_order == StrategyOrder.NEIGHBORHOOD:
                 self.group_strategy(time_step)
 
-    def response(self, time_step) -> float:
+    def response(self, time_step : int) -> float:
         total_load = 0
         for house in self.list_of_houses:
             house.ev.response(time_step)
@@ -134,7 +134,7 @@ class Simulator:
             total_load += house_load
         return total_load
 
-    def do_time_step(self, time_step):
+    def do_time_step(self, time_step : int):
         self.limit_ders(time_step)
         self.control_strategy(time_step)
         self.total_load[time_step] = self.response(time_step)

@@ -1,88 +1,160 @@
+from typing import List
 import numpy as np
-import matplotlib.pyplot as plt
 import time
 
-#import required .py files
-import data_initialization
-import minmax
-import response
+from Simulator import Simulator, StrategyOrder
+from ModelClasses import PVInstallation, EVInstallation, Heatpump, Battery
 import time
+from Vizualizer import Vizualizer
+import constants
 
-#INITIALIZE SCENARIO
-sim_length = 96*7*52 #Length of simulation (96 ptu's per day and 7 days)
-number_of_houses = 100
+TIME_STEP_SECONDS = constants.TIME_STEP_SECONDS
 
+def pv_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, pv : PVInstallation):
+    """
+    Implement a nice pv strategy here
 
-#INITIALIZE DATA
-[list_of_houses,ren_share,temperature_data] = data_initialization.initialize(sim_length, number_of_houses) #this creates the list of houses object and arranges all the earlier loaded data correctly
-total_load = np.zeros(sim_length) #array to store the total combined load of all households for each timestep
+    Do this by setting a value for pv.consumption[time_step]
+    This value should be <= 0
+    """
 
+    # Example 1: fully curtail the PV
+    # pv.consumption[time_step] = 0.0
 
-if __name__ == '__main__':
+    # Example 2: no curtailment, generate the max power
+    pv.consumption[time_step] = pv.max_power[time_step]
+
+def ev_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, ev : EVInstallation):
+    """
+    Implement a nice ev strategy here
+
+    Do this by setting a value for ev.consumption[time_step]
+    This value should be >= 0
+    """
+
+    # Example 1: charge as fast as technically possible
+    ev.consumption[time_step] = ev.max
+
+    # Example 2: try to reach max state of charge during the session. Divide the load over the available time
+    """
+    session_nr = int(ev.session[time_step])
+    required_energy = ev.size  # always charge to 100% SoC
+    energy_to_charge = max(0, required_energy - ev.energy)  # in kWh
+    time_to_charge = (ev.session_leave[session_nr] - time_step) * TIME_STEP_SECONDS / 3600  # in hours
+    ev.consumption[time_step] = min(ev.power_max, energy_to_charge / time_to_charge)
+    """
+
+def hp_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, hp : Heatpump):
+    """
+    Implement a nice hp strategy here
+
+    Do this by setting a value for hp.consumption[time_step]
+    This value should be >= 0
+    """
+    # Example 1: Consume power such that the house temperature is kept at the set point and such that the tank
+    # is heated as much as possible
+    """
+    hp.consumption[time_step] = hp.max  # convert to kW
+    """
+
+    # Example 2 : Consume power such that the house temperature is kept at the set point and such that the tank
+    # temperature does not reach below its set point
+    # All these calculations are in SI units, that is: Kelvin, Joule, and seconds
+    T_ambient = temperature_data[time_step]
+
+    # Calculate the amount of heat needed to keep the house temperature constant at the set point
+    heat_demand_house = hp.calculate_heat_demand_house(time_step, hp.T_set)
+
+    # Calculate whether the tank temperature will reach below its set point if the house is heated
+    tank_T_difference_no_hp = heat_demand_house / (hp.tank_mass * hp.heat_capacity_water)
+    tank_T_no_hp = hp.tank_T - tank_T_difference_no_hp
+
+    if tank_T_no_hp > hp.tank_T_set:
+        heat_power_to_tank = 0.0  # No heat needed for the tank
+    else:
+        # supply up to set point if possible
+        heat_to_tank = hp.tank_mass * hp.heat_capacity_water * (hp.tank_T_set - tank_T_no_hp) + heat_demand_house
+        heat_power_to_tank = min(hp.nominal_power, heat_to_tank / TIME_STEP_SECONDS)
+
+    # Convert the heating power to electrical power using the Coefficient of Performance
+    power = heat_power_to_tank / hp.cop(hp.tank_T_set, T_ambient)
+    hp.consumption[time_step] = power / 1000.0  # convert to kW
+
+def batt_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, batt : Battery):
+    """
+    Implement a nice battery strategy here
+
+    Do this by setting a value for batt.consumption[time_step]
+    This value cam be smaller (discharging) or greater (charging) than 0
+    """
+
+    # Example: do nothing, determine the consumption of the battery in the house strategy
+    pass
+
+def house_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, base_data : np.ndarray,
+                   pv : PVInstallation, ev : EVInstallation, batt : Battery, hp : Heatpump):
+    """
+    Implement a nice house strategy here
+
+    Do this by setting one or more of the following values:
+    - pv.consumption[time_step]
+    - ev.consumption[time_step]
+    - hp.consumption[time_step]
+    - batt.consumption[time_step]
+    """
+
+    # Example: only set batt.consumption[time_step]
+    house_load = base_data[time_step] + pv.consumption[time_step] + ev.consumption[time_step] + hp.consumption[time_step]
+    if house_load <= 0: # if the combined load is negative, charge the battery
+        batt.consumption[time_step] = min(-house_load, batt.max)
+    else: # discharge the battery otherwise
+        batt.consumption[time_step] = max(-house_load, batt.min)
+
+def neighborhood_strategy(time_step, temperature_data : np.ndarray, renewable_share : np.ndarray, baseloads : np.ndarray,
+                          pvs : List[PVInstallation], evs : List[EVInstallation], hps : List[Heatpump], batteries : List[Battery]):
+    """
+    Implement a nice neighborhood strategy here
+
+    Do this by setting on or more of the following values for the assets in pvs, evs, hps, and batteries
+    - pv.consumption[time_step] for pv in pvs
+    - ev.consumption[time_step] for ev in evs
+    - hp.consumption[time_step] for hp in hps
+    - batt.consumption[time_step] for batt in batteries
+    """
+    pass
+
+def main():
+    """
+    Run this function to start a simulation
+    """
+
+    # Set up simulation
+    number_of_houses = 100  # <= 100
+    amount_of_days_to_simulate = 364  # <= 364
+    sim_length = amount_of_days_to_simulate * constants.AMOUNT_OF_TIME_STEPS_IN_DAY
+
+    strategy_order = [StrategyOrder.INDIVIDUAL, StrategyOrder.HOUSEHOLD, StrategyOrder.NEIGHBORHOOD]
+
+    simulator = Simulator(control_order=strategy_order,
+                          battery_strategy=batt_strategy, 
+                          hp_strategy=hp_strategy, 
+                          pv_strategy=pv_strategy, 
+                          ev_strategy=ev_strategy, 
+                          neighborhood_strategy=neighborhood_strategy, 
+                          house_strategy=house_strategy)
+    simulator.initialize(sim_length, number_of_houses, "data/data.pkl", "data/reference_load.npy")
+
+    # Run Simulation
     start_time = time.time()
-    print("start simulation")
-    for i in range(0, sim_length):
-        minmax.limit_ders(list_of_houses, i, temperature_data[i]) # determine the min and max power consumption of each DER during this timestep
-
-        for house in list_of_houses: #now we determine the actual consumption of each DER
-            house.pv.consumption[i] = house.pv.minmax[1] #The PV wil always generate maximum power
-            house.ev.consumption[i] = house.ev.minmax[1] #The EV will, if connected, always charge with maximum power
-            house.hp.consumption[i] = house.hp.minmax[0] #The HP will keep the household temperature constant
-            house_load = house.base_data[i] + house.pv.consumption[i] + house.ev.consumption[i] + house.hp.consumption[i]
-            if house_load <= 0: #if the combined load is negative, charge the battery
-                house.batt.consumption[i] = min(-house_load, house.batt.minmax[1])
-            else: #always immediately discharge the battery
-                house.batt.consumption[i] = max(-house_load, house.batt.minmax[0])
-
-        total_load[i] = response.response(list_of_houses, i, temperature_data[i]) #Response and update DERs for the determined power consumption
+    print("Start simulation")
+    simulator.start_simulation()
     print("finished simulation")
     print(f'Duration: {time.time() - start_time} seconds')
+    
+    # Show Results
+    vizualizer = Vizualizer(sim_length)
+    vizualizer.plot_results_reference_and_total_load(simulator.reference_load, simulator.total_load)
+    vizualizer.print_metrics_renewable_share_total_load(simulator.ren_share, simulator.total_load)
 
-reference_load = np.load("reference_load.npy") #load the reference profile
-
-
-
-def plot_grid():
-
-    plt.title("Total Load Neighborhood")
-    plt.plot(reference_load, label="Reference")
-    plt.plot(total_load, label="Simulation")
-    plt.xlabel('PTU [-]')
-    plt.ylabel('Kilowatt [kW]')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    plt.figure()
-    power_split = np.split(total_load, sim_length / 96)
-    reference_split = np.split(reference_load, sim_length / 96)
-    power_split = sum(power_split)
-    reference_split = sum(reference_split)
-    max_val = max(max(power_split),max(reference_split))
-    power_split /= max_val
-    reference_split /= max_val
-
-    plt.title("Normalized Daily Power Profile")
-    plt.plot(np.arange(1, 97) / 4, power_split, label = 'Simulation')
-    plt.plot(np.arange(1, 97) / 4, reference_split, label = "Reference")
-    plt.xlabel('Hour [-]')
-    plt.ylabel('Relative Power [-]')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-def renewables():
-
-    energy_export = abs(sum(total_load[total_load<0]/4))
-    energy_import = sum(total_load[total_load>0]/4)
-    renewable_import = sum(total_load[total_load > 0] * ren_share[total_load > 0])/4
-    renewable_percentage = renewable_import/energy_import*100
-
-    print("Energy Exported: ", energy_export)
-    print("Energy Imported: ", energy_import)
-    print("Renewable Share:", renewable_percentage)
-
-
-plot_grid()
-
-renewables()
+if __name__ == '__main__':
+    exit(main())

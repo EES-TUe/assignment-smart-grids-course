@@ -5,6 +5,7 @@ import time
 from Simulator import Simulator, StrategyOrder
 from DataClasses import PVInstallation, EVInstallation, Heatpump, Battery
 import time
+from Vizualizer import Vizualizer
 import constants
 
 def pv_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, pv : PVInstallation):
@@ -111,8 +112,9 @@ def main():
     print(f'Duration: {time.time() - start_time} seconds')
     
     # Show Results
-    simulator.print_metrics()
-    simulator.plot_results()
+    vizualizer = Vizualizer(sim_length)
+    vizualizer.plot_results_reference_and_total_load(simulator.reference_load, simulator.total_load)
+    vizualizer.print_metrics_renewable_share_total_load(simulator.ren_share, simulator.total_load)
 
 if __name__ == '__main__':
     exit(main())

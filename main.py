@@ -46,7 +46,7 @@ def ev_strategy(time_step : int, temperature_data : np.ndarray, renewable_share 
 
 def hp_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, hp : Heatpump):
     """
-    Implement a nice hp strategy here
+    Implement a nice hp strategy here!
 
     Do this by setting a value for hp.consumption[time_step]
     This value should be >= 0

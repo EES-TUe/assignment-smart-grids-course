@@ -272,7 +272,7 @@ class Heatpump(Asset):
         Do not change this function!
         """
         T_ambient = self.T_ambient[time_step]
-        heat_to_tank = (self.consumption[time_step] * TIME_STEP_SECONDS) * self.cop(self.tank_T_set, T_ambient[0])
+        heat_to_tank = (self.consumption[time_step] * TIME_STEP_SECONDS) * self.cop(self.tank_T_set, T_ambient)
         heat_to_tank = heat_to_tank * 1000 # in W
 
         # Calculate the heat required by the house
@@ -339,8 +339,8 @@ class Heatpump(Asset):
         max_heat_power_to_tank = min(self.nominal_power, max_heat_to_tank / TIME_STEP_SECONDS)
 
         # Convert the heating power to electrical power using the Coefficient of Performance
-        min_power = min_heat_power_to_tank / self.cop(self.tank_T_set, T_ambient[0])
-        max_power = max_heat_power_to_tank / self.cop(self.tank_T_set, T_ambient[0])
+        min_power = min_heat_power_to_tank / self.cop(self.tank_T_set, T_ambient)
+        max_power = max_heat_power_to_tank / self.cop(self.tank_T_set, T_ambient)
 
         self.min = min_power / 1000.0  # convert to kW
         self.max = max_power / 1000.0  # convert to kW

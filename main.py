@@ -1,11 +1,11 @@
 from typing import List
 import numpy as np
 import time
-import matplotlib.pyplot as plt
 
 from Simulator import Simulator, StrategyOrder
 from ModelClasses import PVInstallation, EVInstallation, Heatpump, Battery
 import time
+from Vizualizer import Vizualizer
 import constants
 
 TIME_STEP_SECONDS = constants.TIME_STEP_SECONDS
@@ -152,8 +152,9 @@ def main():
     print(f'Duration: {time.time() - start_time} seconds')
     
     # Show Results
-    simulator.print_metrics()
-    simulator.plot_results()
+    vizualizer = Vizualizer(sim_length)
+    vizualizer.plot_results_reference_and_total_load(simulator.reference_load, simulator.total_load)
+    vizualizer.print_metrics_renewable_share_total_load(simulator.ren_share, simulator.total_load)
 
 if __name__ == '__main__':
     exit(main())

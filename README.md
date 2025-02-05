@@ -37,9 +37,6 @@ def house_strategy(time_step : int,
                     batt : Battery, 
                     hp : Heatpump):
 
-    pv.consumption[time_step] = pv.max 
-    ev.consumption[time_step] = ev.max
-    hp.consumption[time_step] = hp.min
     house_load = base_data[time_step] + pv.consumption[time_step] + 
         ev.consumption[time_step] + hp.consumption[time_step]
     if house_load <= 0: # if the combined load is negative, charge the battery
@@ -47,14 +44,14 @@ def house_strategy(time_step : int,
     else: # always immediately discharge the battery
         batt.consumption[time_step] = max(-house_load, batt.min)
 ```
-The first level is the household level, in this function a strategy can be implemented that holds for every individual household. The above code snippit shows a strategy where pv and ev consumption is always set the to the maximum and the heatpump consumption is set to its minimal value. Next, depending on the resulting total load on the house the battery is either charged or discharged.
+The first level is the household level, in this function a strategy can be implemented that holds for every individual household. The above code snippit shows a strategy where depending on the resulting total load on the house the battery is either charged or discharged.
 
 ```python
 def pv_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray,
                 pv : PVInstallation):
     pv.consumption[time_step] = pv.max
 ```
-The second level is on the level of individual DERs. The above example highligts a pv strategy where similar to the household strategy the consumption of pv is set to the maximum possible value.
+The second level is on the level of individual DERs. The above example highligts a pv strategy where the consumption of pv is set to the maximum possible value.
 
 ```python
 def neighborhood_strategy(time_step, 

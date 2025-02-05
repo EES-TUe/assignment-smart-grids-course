@@ -26,7 +26,7 @@ def pv_strategy(time_step : int, temperature_data : np.ndarray, renewable_share 
 
 def ev_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, ev : EVInstallation):
     """
-    Implement a nice ev strategy here
+    Implement a nice ev strategy here!
 
     Do this by setting a value for ev.consumption[time_step]
     This value should be >= 0

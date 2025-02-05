@@ -1,11 +1,14 @@
 from typing import List
 import numpy as np
 import time
+import matplotlib.pyplot as plt
 
 from Simulator import Simulator, StrategyOrder
-from DataClasses import PVInstallation, EVInstallation, Heatpump, Battery
+from ModelClasses import PVInstallation, EVInstallation, Heatpump, Battery
 import time
 import constants
+
+TIME_STEP_SECONDS = constants.TIME_STEP_SECONDS
 
 def pv_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, pv : PVInstallation):
     """
@@ -15,8 +18,11 @@ def pv_strategy(time_step : int, temperature_data : np.ndarray, renewable_share 
     This value should be <= 0
     """
 
-    # Example:
-    pv.consumption[time_step] = pv.max
+    # Example 1: fully curtail the PV
+    # pv.consumption[time_step] = 0.0
+
+    # Example 2: no curtailment, generate the max power
+    pv.consumption[time_step] = pv.max_power[time_step]
 
 def ev_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, ev : EVInstallation):
     """
@@ -26,8 +32,17 @@ def ev_strategy(time_step : int, temperature_data : np.ndarray, renewable_share 
     This value should be >= 0
     """
 
-    # Example:
+    # Example 1: charge as fast as technically possible
     ev.consumption[time_step] = ev.max
+
+    # Example 2: try to reach max state of charge during the session. Divide the load over the available time
+    """
+    session_nr = int(ev.session[time_step])
+    required_energy = ev.size  # always charge to 100% SoC
+    energy_to_charge = max(0, required_energy - ev.energy)  # in kWh
+    time_to_charge = (ev.session_leave[session_nr] - time_step) * TIME_STEP_SECONDS / 3600  # in hours
+    ev.consumption[time_step] = min(ev.power_max, energy_to_charge / time_to_charge)
+    """
 
 def hp_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, hp : Heatpump):
     """
@@ -36,9 +51,34 @@ def hp_strategy(time_step : int, temperature_data : np.ndarray, renewable_share 
     Do this by setting a value for hp.consumption[time_step]
     This value should be >= 0
     """
+    # Example 1: Consume power such that the house temperature is kept at the set point and such that the tank
+    # is heated as much as possible
+    """
+    hp.consumption[time_step] = hp.max  # convert to kW
+    """
 
-    # Example:
-    hp.consumption[time_step] = hp.min
+    # Example 2 : Consume power such that the house temperature is kept at the set point and such that the tank
+    # temperature does not reach below its set point
+    # All these calculations are in SI units, that is: Kelvin, Joule, and seconds
+    T_ambient = temperature_data[time_step]
+
+    # Calculate the amount of heat needed to keep the house temperature constant at the set point
+    heat_demand_house = hp.calculate_heat_demand_house(time_step, hp.T_set)
+
+    # Calculate whether the tank temperature will reach below its set point if the house is heated
+    tank_T_difference_no_hp = heat_demand_house / (hp.tank_mass * hp.heat_capacity_water)
+    tank_T_no_hp = hp.tank_T - tank_T_difference_no_hp
+
+    if tank_T_no_hp > hp.tank_T_set:
+        heat_power_to_tank = 0.0  # No heat needed for the tank
+    else:
+        # supply up to set point if possible
+        heat_to_tank = hp.tank_mass * hp.heat_capacity_water * (hp.tank_T_set - tank_T_no_hp) + heat_demand_house
+        heat_power_to_tank = min(hp.nominal_power, heat_to_tank / TIME_STEP_SECONDS)
+
+    # Convert the heating power to electrical power using the Coefficient of Performance
+    power = heat_power_to_tank / hp.cop(hp.tank_T_set, T_ambient)
+    hp.consumption[time_step] = power / 1000.0  # convert to kW
 
 def batt_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, batt : Battery):
     """
@@ -51,7 +91,8 @@ def batt_strategy(time_step : int, temperature_data : np.ndarray, renewable_shar
     # Example: do nothing, determine the consumption of the battery in the house strategy
     pass
 
-def house_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, base_data : np.ndarray, pv : PVInstallation, ev : EVInstallation, batt : Battery, hp : Heatpump):
+def house_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, base_data : np.ndarray,
+                   pv : PVInstallation, ev : EVInstallation, batt : Battery, hp : Heatpump):
     """
     Implement a nice house strategy here
 
@@ -75,10 +116,10 @@ def neighborhood_strategy(time_step, temperature_data : np.ndarray, renewable_sh
     Implement a nice neighborhood strategy here
 
     Do this by setting on or more of the following values for the assets in pvs, evs, hps, and batteries
-    - pv.consumption[time_step]
-    - ev.consumption[time_step]
-    - hp.consumption[time_step]
-    - batt.consumption[time_step]
+    - pv.consumption[time_step] for pv in pvs
+    - ev.consumption[time_step] for ev in evs
+    - hp.consumption[time_step] for hp in hps
+    - batt.consumption[time_step] for batt in batteries
     """
     pass
 

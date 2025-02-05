@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import constants
-from DataClasses import House
+from ModelClasses import House
 
 class StrategyOrder(Enum):
     INDIVIDUAL = 1
@@ -37,12 +37,12 @@ class Simulator:
         self.total_load : np.ndarray = np.array([])
         self.control_order : List[StrategyOrder] = control_order
 
-    def limit_ders(self, time_step : int):
+    def set_min_max_ders(self, time_step : int):
         for house in self.list_of_houses:
-            house.pv.limit(time_step)
-            house.ev.limit(time_step)
-            house.batt.limit(time_step)
-            house.hp.limit(time_step)
+            house.pv.set_min_max(time_step)
+            house.ev.set_min_max(time_step)
+            house.batt.set_min_max(time_step)
+            house.hp.set_min_max(time_step)
 
     def initialize(self, sim_length : int, number_of_houses : int, path_to_pkl_data : str, path_to_reference_data : str):
         #Scenario Parameters
@@ -103,26 +103,34 @@ class Simulator:
 
     def individual_strategy(self, time_step : int):
         for house in self.list_of_houses:
-            house.pv.simulate_individual_entity(time_step, self.ren_share, self.temperature_data)
-            house.ev.simulate_individual_entity(time_step, self.ren_share, self.temperature_data)
-            house.hp.simulate_individual_entity(time_step, self.ren_share, self.temperature_data)
-            house.batt.simulate_individual_entity(time_step, self.ren_share, self.temperature_data)
+            house.pv.simulate_individual_entity(time_step, self.temperature_data, self.ren_share)
+            house.ev.simulate_individual_entity(time_step, self.temperature_data, self.ren_share)
+            house.hp.simulate_individual_entity(time_step, self.temperature_data, self.ren_share)
+            house.batt.simulate_individual_entity(time_step, self.temperature_data, self.ren_share)
 
     def household_strategy(self, time_step : int):
         for house in self.list_of_houses:
-            house.simulate_individual_entity(time_step, self.ren_share, self.temperature_data)
+            house.simulate_individual_entity(time_step, self.temperature_data, self.ren_share)
 
     def group_strategy(self, time_step : int):
         self.neighborhood_strategy(time_step, self.temperature_data, self.ren_share, self.base_loads, self.pvs, self.evs, self.hps, self.batteries)
 
     def control_strategy(self, time_step : int):
-        for control_strategy_order in self.control_order:
-            if control_strategy_order == StrategyOrder.HOUSEHOLD:
-                self.household_strategy(time_step)
-            if control_strategy_order == StrategyOrder.INDIVIDUAL:
-                self.individual_strategy(time_step)
-            if control_strategy_order == StrategyOrder.NEIGHBORHOOD:
-                self.group_strategy(time_step)
+        try:  # catch errors caused by operations, probably caused by wrong strategy order
+            for control_strategy_order in self.control_order:
+                if control_strategy_order == StrategyOrder.HOUSEHOLD:
+                    self.household_strategy(time_step)
+                if control_strategy_order == StrategyOrder.INDIVIDUAL:
+                    self.individual_strategy(time_step)
+                if control_strategy_order == StrategyOrder.NEIGHBORHOOD:
+                    self.group_strategy(time_step)
+        except TypeError as e:
+            message = f"Type error encountered: {e}. If this error is caused by applying an operation on None, " \
+                      f"this likely means that you did not apply the correct strategy order, and you tried to use " \
+                      f"consumption values not defined earlier."
+            raise TypeError(message)
+
+
 
     def response(self, time_step : int) -> float:
         total_load = 0
@@ -135,7 +143,7 @@ class Simulator:
         return total_load
 
     def do_time_step(self, time_step : int):
-        self.limit_ders(time_step)
+        self.set_min_max_ders(time_step)
         self.control_strategy(time_step)
         self.total_load[time_step] = self.response(time_step)
 

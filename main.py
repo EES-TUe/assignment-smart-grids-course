@@ -57,12 +57,10 @@ def hp_strategy(time_step : int, temperature_data : np.ndarray, renewable_share 
     """
     hp.consumption[time_step] = hp.max  # convert to kW
     """
-
     # Example 2 : Consume power such that the house temperature is kept at the set point and such that the tank
     # temperature does not reach below its set point
     # All these calculations are in SI units, that is: Kelvin, Joule, and seconds
-    
-    # XEM PHẦN limit_hp
+
     # T_ambient = temperature_data[time_step]
 
     # # Calculate the amount of heat needed to keep the house temperature constant at the set point
@@ -78,16 +76,11 @@ def hp_strategy(time_step : int, temperature_data : np.ndarray, renewable_share 
     #     # supply up to set point if possible
     #     heat_to_tank = hp.tank_mass * hp.heat_capacity_water * (hp.tank_T_set - tank_T_no_hp) + heat_demand_house
     #     heat_power_to_tank = min(hp.nominal_power, heat_to_tank / TIME_STEP_SECONDS)
-    #     # TIME_STEP_SECONDS = 900, chuyển về power nên chia cho time T, norminal power k * với 900 nữa
 
     # # Convert the heating power to electrical power using the Coefficient of Performance
     # power = heat_power_to_tank / hp.cop(hp.tank_T_set, T_ambient)
     # hp.consumption[time_step] = power / 1000.0  # convert to kW
-    # Nếu k có strategy thì dùng min_max?
     hp.consumption[time_step] = hp.min
-
-    # HP không xét min, max nữa mà dùng T_set cùng với heat_demand_house nếu nhiệt độ tank chưa có hp nhỏ hơn Tset. 
-    # Lúc trước min thì k tính đến heat demand house, max thì dùng t_max_limit cùng với heat demand house.
 
 def batt_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, batt : Battery):
     """

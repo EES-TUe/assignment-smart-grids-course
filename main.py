@@ -32,9 +32,6 @@ def ev_strategy(time_step : int, temperature_data : np.ndarray, renewable_share 
     This value should be >= 0
     """
 
-    # Example 1: charge as fast as technically possible
-    ev.consumption[time_step] = ev.max
-
     # Example 2: try to reach max state of charge during the session. Divide the load over the available time
     """
     session_nr = int(ev.session[time_step])
@@ -43,6 +40,7 @@ def ev_strategy(time_step : int, temperature_data : np.ndarray, renewable_share 
     time_to_charge = (ev.session_leave[session_nr] - time_step) * TIME_STEP_SECONDS / 3600  # in hours
     ev.consumption[time_step] = min(ev.power_max, energy_to_charge / time_to_charge)
     """
+    pass
 
 def hp_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, hp : Heatpump):
     """
@@ -121,7 +119,25 @@ def neighborhood_strategy(time_step, temperature_data : np.ndarray, renewable_sh
     - hp.consumption[time_step] for hp in hps
     - batt.consumption[time_step] for batt in batteries
     """
-    pass
+    start_charge_group_1 = 6*4
+    start_charge_group_2 = 12*4
+    end_charge_group_2 = 18*4
+   
+    step_in_day = time_step%96
+    if step_in_day >= start_charge_group_1 and step_in_day < start_charge_group_2:
+        for i in range(50):
+            evs[i].consumption[time_step] = evs[i].max
+        for i in range(50, 100):
+            evs[i].consumption[time_step] = evs[i].min
+ 
+    elif step_in_day >= start_charge_group_2 and step_in_day < end_charge_group_2:
+        for i in range(50, 100):
+            evs[i].consumption[time_step] = evs[i].max
+        for i in range(0, 50):
+            evs[i].consumption[time_step] = evs[i].min
+    else:
+        for i in range(0, 100):
+            evs[i].consumption[time_step] = evs[i].min
 
 def main():
     """
@@ -130,10 +146,10 @@ def main():
 
     # Set up simulation
     number_of_houses = 100  # <= 100
-    amount_of_days_to_simulate = 364  # <= 364
+    amount_of_days_to_simulate = 7  # <= 364
     sim_length = amount_of_days_to_simulate * constants.AMOUNT_OF_TIME_STEPS_IN_DAY
 
-    strategy_order = [StrategyOrder.INDIVIDUAL, StrategyOrder.HOUSEHOLD, StrategyOrder.NEIGHBORHOOD]
+    strategy_order = [StrategyOrder.INDIVIDUAL, StrategyOrder.NEIGHBORHOOD, StrategyOrder.HOUSEHOLD]
 
     simulator = Simulator(control_order=strategy_order,
                           battery_strategy=batt_strategy, 

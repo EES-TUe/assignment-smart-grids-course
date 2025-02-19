@@ -33,6 +33,7 @@ def ev_strategy(time_step : int, temperature_data : np.ndarray, renewable_share 
     """
 
     # Example 1: charge as fast as technically possible
+    # ev.consumption[time_step] = ev.min
     ev.consumption[time_step] = ev.max
 
     # Example 2: try to reach max state of charge during the session. Divide the load over the available time
@@ -60,25 +61,33 @@ def hp_strategy(time_step : int, temperature_data : np.ndarray, renewable_share 
     # Example 2 : Consume power such that the house temperature is kept at the set point and such that the tank
     # temperature does not reach below its set point
     # All these calculations are in SI units, that is: Kelvin, Joule, and seconds
-    T_ambient = temperature_data[time_step]
+    
+    # XEM PHẦN limit_hp
+    # T_ambient = temperature_data[time_step]
 
-    # Calculate the amount of heat needed to keep the house temperature constant at the set point
-    heat_demand_house = hp.calculate_heat_demand_house(time_step, hp.T_set)
+    # # Calculate the amount of heat needed to keep the house temperature constant at the set point
+    # heat_demand_house = hp.calculate_heat_demand_house(time_step, hp.T_set)
 
-    # Calculate whether the tank temperature will reach below its set point if the house is heated
-    tank_T_difference_no_hp = heat_demand_house / (hp.tank_mass * hp.heat_capacity_water)
-    tank_T_no_hp = hp.tank_T - tank_T_difference_no_hp
+    # # Calculate whether the tank temperature will reach below its set point if the house is heated
+    # tank_T_difference_no_hp = heat_demand_house / (hp.tank_mass * hp.heat_capacity_water)
+    # tank_T_no_hp = hp.tank_T - tank_T_difference_no_hp
 
-    if tank_T_no_hp > hp.tank_T_set:
-        heat_power_to_tank = 0.0  # No heat needed for the tank
-    else:
-        # supply up to set point if possible
-        heat_to_tank = hp.tank_mass * hp.heat_capacity_water * (hp.tank_T_set - tank_T_no_hp) + heat_demand_house
-        heat_power_to_tank = min(hp.nominal_power, heat_to_tank / TIME_STEP_SECONDS)
+    # if tank_T_no_hp > hp.tank_T_set:
+    #     heat_power_to_tank = 0.0  # No heat needed for the tank
+    # else:
+    #     # supply up to set point if possible
+    #     heat_to_tank = hp.tank_mass * hp.heat_capacity_water * (hp.tank_T_set - tank_T_no_hp) + heat_demand_house
+    #     heat_power_to_tank = min(hp.nominal_power, heat_to_tank / TIME_STEP_SECONDS)
+    #     # TIME_STEP_SECONDS = 900, chuyển về power nên chia cho time T, norminal power k * với 900 nữa
 
-    # Convert the heating power to electrical power using the Coefficient of Performance
-    power = heat_power_to_tank / hp.cop(hp.tank_T_set, T_ambient)
-    hp.consumption[time_step] = power / 1000.0  # convert to kW
+    # # Convert the heating power to electrical power using the Coefficient of Performance
+    # power = heat_power_to_tank / hp.cop(hp.tank_T_set, T_ambient)
+    # hp.consumption[time_step] = power / 1000.0  # convert to kW
+    # Nếu k có strategy thì dùng min_max?
+    hp.consumption[time_step] = hp.min
+
+    # HP không xét min, max nữa mà dùng T_set cùng với heat_demand_house nếu nhiệt độ tank chưa có hp nhỏ hơn Tset. 
+    # Lúc trước min thì k tính đến heat demand house, max thì dùng t_max_limit cùng với heat demand house.
 
 def batt_strategy(time_step : int, temperature_data : np.ndarray, renewable_share : np.ndarray, batt : Battery):
     """
@@ -87,6 +96,7 @@ def batt_strategy(time_step : int, temperature_data : np.ndarray, renewable_shar
     Do this by setting a value for batt.consumption[time_step]
     This value cam be smaller (discharging) or greater (charging) than 0
     """
+    # batt.consumption[time_step] = 0
 
     # Example: do nothing, determine the consumption of the battery in the house strategy
     pass
@@ -107,8 +117,11 @@ def house_strategy(time_step : int, temperature_data : np.ndarray, renewable_sha
     house_load = base_data[time_step] + pv.consumption[time_step] + ev.consumption[time_step] + hp.consumption[time_step]
     if house_load <= 0: # if the combined load is negative, charge the battery
         batt.consumption[time_step] = min(-house_load, batt.max)
-    else: # discharge the battery otherwise
+    # Only discharge battery during peak hour: 18-20
+    elif time_step%96 >18*4 and time_step%96 <20*4:
         batt.consumption[time_step] = max(-house_load, batt.min)
+    else:
+        batt.consumption[time_step] = 0
 
 def neighborhood_strategy(time_step, temperature_data : np.ndarray, renewable_share : np.ndarray, baseloads : np.ndarray,
                           pvs : List[PVInstallation], evs : List[EVInstallation], hps : List[Heatpump], batteries : List[Battery]):
@@ -130,7 +143,7 @@ def main():
 
     # Set up simulation
     number_of_houses = 100  # <= 100
-    amount_of_days_to_simulate = 364  # <= 364
+    amount_of_days_to_simulate = 5  # <= 364
     sim_length = amount_of_days_to_simulate * constants.AMOUNT_OF_TIME_STEPS_IN_DAY
 
     strategy_order = [StrategyOrder.INDIVIDUAL, StrategyOrder.HOUSEHOLD, StrategyOrder.NEIGHBORHOOD]
